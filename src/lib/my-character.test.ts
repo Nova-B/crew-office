@@ -2,7 +2,11 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
 
-import { seedUser } from "@/test-setup/npc-seed";
+import { seedUser, setupThrowawaySqlite } from "@/test-setup/npc-seed";
+
+// crew-office: 임시 SQLite 없이 돌면 기본 앱 DB(~/.deskrpg/data/deskrpg.db)에 테스트 계정이 쌓인다 —
+// 실제로 그렇게 쌓여 사용자의 첫 가입이 관리자가 되지 못했다.
+setupThrowawaySqlite("my-character-test");
 
 async function loadDb() {
   return import("@/db");

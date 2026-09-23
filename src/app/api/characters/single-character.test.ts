@@ -2,11 +2,15 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { NextRequest } from "next/server";
 
-import { seedUser } from "@/test-setup/npc-seed";
+import { seedUser, setupThrowawaySqlite } from "@/test-setup/npc-seed";
 import { QUICK_START_APPEARANCE } from "@/lib/quick-start";
 
 // 빠른 시작이 쓰는 외형을 그대로 쓴다 — validateOfficeAppearance 를 통과하는 오피스 룩이다.
 const APPEARANCE = QUICK_START_APPEARANCE;
+
+// crew-office: 임시 SQLite 없이 돌면 기본 앱 DB(~/.deskrpg/data/deskrpg.db)에 테스트 계정이 쌓인다 —
+// 실제로 그렇게 쌓여 사용자의 첫 가입이 관리자가 되지 못했다.
+setupThrowawaySqlite("single-character-test");
 
 function req(url: string, userId: string, method = "GET", body?: unknown) {
   return new NextRequest(url, {
