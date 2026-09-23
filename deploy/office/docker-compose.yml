@@ -1,0 +1,70 @@
+# DeskRPG Office — 한 컨테이너에 사무실과 두뇌를 함께 올린다.
+#
+# Hostinger VPS 의 Docker Manager 에서 "Compose from URL" 로 이 파일을 붙여넣어 쓴다.
+# 값은 전부 기본값이 있으므로 환경변수 칸을 비워도 뜬다 — 다만 비밀 둘은 반드시 바꾼다.
+services:
+  deskrpg-office:
+    image: ${OFFICE_IMAGE:-ghcr.io/dandacompany/deskrpg-office:latest}
+    container_name: deskrpg-office
+    restart: unless-stopped
+    environment:
+      # ── 비밀 ──────────────────────────────────────────────────────
+      # 기본값을 일부러 비워 둔다. 공개 compose 에 적힌 기본 비밀은 비밀이 아니다 —
+      # 아무도 바꾸지 않으면 이 파일을 읽은 사람 누구나 그 값을 안다.
+      #
+      # JWT_SECRET: 비우면 컨테이너가 처음 뜰 때 임의로 만들어 볼륨에 저장한다
+      # (src/lib/runtime-paths.js). 배포마다 다른 값이 되므로 비워 두는 편이 안전하다.
+      # 여러 대에서 세션을 공유해야 할 때만 직접 지정한다.
+      JWT_SECRET: ${JWT_SECRET:-}
+      # 대시보드는 Traefik 이 공개 주소로 연다. 비밀번호가 없으면 Hermes 가 스스로
+      # 공개 바인딩을 거부한다(fail-closed) — 값을 넣어야 대시보드가 열린다.
+      HERMES_DASHBOARD_BASIC_AUTH_USERNAME: ${DASHBOARD_USER:-admin}
+      HERMES_DASHBOARD_BASIC_AUTH_PASSWORD: ${DASHBOARD_PASSWORD:-}
+
+      # ── 모델 제공자 (하나만 채우면 된다) ──────────────────────────
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+
+      # ── 선택 ──────────────────────────────────────────────────────
+      # 컨테이너가 뜰 때마다 Hermes·DeskRPG 를 최신으로 올린다. 끄면 이미지에 담긴 버전을 쓴다.
+      DESKRPG_AUTO_UPDATE: ${DESKRPG_AUTO_UPDATE:-true}
+      HERMES_DASHBOARD: "true"
+      HERMES_DASHBOARD_HOST: 0.0.0.0
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      REGISTRATION_DISABLED: ${REGISTRATION_DISABLED:-}
+      NEXT_PUBLIC_REGISTRATION_DISABLED: ${REGISTRATION_DISABLED:-}
+    volumes:
+      # Hermes 홈(/opt/data)과 DeskRPG 런타임(/opt/data/deskrpg)이 한 볼륨에 산다.
+      # 프로필·인격·칸반·세션·업로드가 전부 여기 있으므로 이 볼륨이 곧 사무실이다.
+      - office-data:/opt/data
+    networks:
+      - default
+      - traefik-proxy
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=traefik-proxy
+      # 사무실 — 같은 출처로 소켓까지 태운다.
+      - traefik.http.routers.deskrpg.rule=Host(`deskrpg.${TRAEFIK_HOST:-localhost}`)
+      - traefik.http.routers.deskrpg.entrypoints=https
+      - traefik.http.routers.deskrpg.tls.certresolver=letsencrypt
+      - traefik.http.routers.deskrpg.service=deskrpg
+      - traefik.http.services.deskrpg.loadbalancer.server.port=3000
+      - traefik.http.routers.deskrpg-socket.rule=Host(`deskrpg.${TRAEFIK_HOST:-localhost}`) && PathPrefix(`/socket.io`)
+      - traefik.http.routers.deskrpg-socket.entrypoints=https
+      - traefik.http.routers.deskrpg-socket.tls.certresolver=letsencrypt
+      - traefik.http.routers.deskrpg-socket.service=deskrpg-socket
+      - traefik.http.services.deskrpg-socket.loadbalancer.server.port=3001
+      # Hermes 대시보드 — 별도 호스트. 비밀번호는 Hermes 가 직접 건다.
+      - traefik.http.routers.hermes-dashboard.rule=Host(`hermes.${TRAEFIK_HOST:-localhost}`)
+      - traefik.http.routers.hermes-dashboard.entrypoints=https
+      - traefik.http.routers.hermes-dashboard.tls.certresolver=letsencrypt
+      - traefik.http.routers.hermes-dashboard.service=hermes-dashboard
+      - traefik.http.services.hermes-dashboard.loadbalancer.server.port=9119
+
+volumes:
+  office-data:
+
+networks:
+  traefik-proxy:
+    external: true

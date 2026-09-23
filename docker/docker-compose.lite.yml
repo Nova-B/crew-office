@@ -1,0 +1,24 @@
+# docker/docker-compose.lite.yml — SQLite mode (no external DB needed)
+# Lightweight single-container deployment. Ideal for self-hosting without PostgreSQL.
+services:
+  deskrpg-app:
+    image: ${DESKRPG_IMAGE:-ghcr.io/dandacompany/deskrpg:latest}
+    container_name: deskrpg-app
+    restart: unless-stopped
+    ports:
+      - "3102:3000"
+      - "3103:3001"
+    volumes:
+      - ../public/assets:/app/public/assets
+      - deskrpg-data:/app/data
+    environment:
+      DB_TYPE: sqlite
+      SQLITE_PATH: /app/data/deskrpg.db
+      JWT_SECRET: ${JWT_SECRET}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+    # 호스트에서 도는 Hermes 게이트웨이(기본 8642)를 이름으로 고정한다.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  deskrpg-data:

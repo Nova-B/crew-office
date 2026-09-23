@@ -1,0 +1,107 @@
+{
+  "pub-library": {
+    "file": "pub-library-v1.glb",
+    "bytes": 350284,
+    "triangles": 3732,
+    "meshes": 12,
+    "bounds": {
+      "min": [-0.9900000095367432, -4.7683716530855236e-8, -0.4675000011920929],
+      "max": [0.9900000095367432, 2.9000000953674316, 0.3675000071525574]
+    },
+    "sha256": "fb1202f60e6f65bcba0d1a7e8163eed6061db1670161fd3d518cb8cabf909dff",
+    "source": "src/game/three/publishing-assets.ts",
+    "license": "Project-authored; same license as DeskRPG repository",
+    "textures": "Project-authored deterministic wood/fabric/metal albedo, normal, roughness",
+    "generator": "scripts/assets/build-publishing-assets.cjs"
+  },
+  "pub-library-ladder": {
+    "file": "pub-library-ladder-v1.glb",
+    "bytes": 370484,
+    "triangles": 3864,
+    "meshes": 13,
+    "bounds": {
+      "min": [-0.9900000095367432, -4.7683716530855236e-8, -0.4675000011920929],
+      "max": [0.9900000095367432, 2.9000000953674316, 0.48249998688697815]
+    },
+    "sha256": "3bb37d0ba3ba0ed46639ca5b2743d9cbec5d0b85d4f48c533a4c5c9741e77a98",
+    "source": "src/game/three/publishing-assets.ts",
+    "license": "Project-authored; same license as DeskRPG repository",
+    "textures": "Project-authored deterministic wood/fabric/metal albedo, normal, roughness",
+    "generator": "scripts/assets/build-publishing-assets.cjs"
+  },
+  "pub-proof-desk": {
+    "file": "pub-proof-desk-v1.glb",
+    "bytes": 275936,
+    "triangles": 2660,
+    "meshes": 8,
+    "bounds": {
+      "min": [-1.9800000190734863, -1.19209286886246e-9, -0.4749999940395355],
+      "max": [1.9800000190734863, 1.2103056907653809, 0.4749999940395355]
+    },
+    "sha256": "6cd4161a5bf10f97e82a05c777082d2e1dd910752597378d9f74004793ecc4a2",
+    "source": "src/game/three/publishing-assets.ts",
+    "license": "Project-authored; same license as DeskRPG repository",
+    "textures": "Project-authored deterministic wood/fabric/metal albedo, normal, roughness",
+    "generator": "scripts/assets/build-publishing-assets.cjs"
+  },
+  "pub-newbook-display": {
+    "file": "pub-newbook-display-v1.glb",
+    "bytes": 156092,
+    "triangles": 1116,
+    "meshes": 9,
+    "bounds": {
+      "min": [-0.9925000071525574, 3.5762786065873797e-9, -0.3400000035762787],
+      "max": [0.9925000071525574, 1.190000057220459, 0.3400000035762787]
+    },
+    "sha256": "f949e27e9d7ede7a2cc4f5c37c6e788f4c153ef6dcefdeb26dc71cdd7321ed53",
+    "source": "src/game/three/publishing-assets.ts",
+    "license": "Project-authored; same license as DeskRPG repository",
+    "textures": "Project-authored deterministic wood/fabric/metal albedo, normal, roughness",
+    "generator": "scripts/assets/build-publishing-assets.cjs"
+  },
+  "pub-print-bench": {
+    "file": "pub-print-bench-v1.glb",
+    "bytes": 145264,
+    "triangles": 536,
+    "meshes": 6,
+    "bounds": {
+      "min": [-0.9850000143051147, -1.0728836485895954e-8, -0.4749999940395355],
+      "max": [0.9850000143051147, 1.3224999904632568, 0.47999998927116394]
+    },
+    "sha256": "a3079bfbd6d3a28937b84e66b2aa32a613859b7e8b441406c384fa575ee40e52",
+    "source": "src/game/three/publishing-assets.ts",
+    "license": "Project-authored; same license as DeskRPG repository",
+    "textures": "Project-authored deterministic wood/fabric/metal albedo, normal, roughness",
+    "generator": "scripts/assets/build-publishing-assets.cjs"
+  },
+  "pub-binding-bench": {
+    "file": "pub-binding-bench-v1.glb",
+    "bytes": 246772,
+    "triangles": 2284,
+    "meshes": 7,
+    "bounds": {
+      "min": [-0.9850000143051147, -1.0728836485895954e-8, -0.4749999940395355],
+      "max": [0.9850000143051147, 1.2000000476837158, 0.4754999876022339]
+    },
+    "sha256": "2385fa62598cc63309272a086ce7ea08fb71d2d92b745a11c7b35e505f2615c1",
+    "source": "src/game/three/publishing-assets.ts",
+    "license": "Project-authored; same license as DeskRPG repository",
+    "textures": "Project-authored deterministic wood/fabric/metal albedo, normal, roughness",
+    "generator": "scripts/assets/build-publishing-assets.cjs"
+  },
+  "pub-workstation": {
+    "file": "pub-workstation-v1.glb",
+    "bytes": 248632,
+    "triangles": 1116,
+    "meshes": 11,
+    "bounds": {
+      "min": [-0.9900000095367432, -1.0728836485895954e-8, -0.47999998927116394],
+      "max": [0.9900000095367432, 1.4082363843917847, 0.47999998927116394]
+    },
+    "sha256": "03090ae5b52481247a05d09cc7c3d29f31651fc68b8f18488df04e90376a903b",
+    "source": "src/game/three/publishing-assets.ts",
+    "license": "Project-authored; same license as DeskRPG repository",
+    "textures": "Project-authored deterministic wood/fabric/metal albedo, normal, roughness",
+    "generator": "scripts/assets/build-publishing-assets.cjs"
+  }
+}

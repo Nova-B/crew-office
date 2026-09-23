@@ -1,0 +1,230 @@
+name: Release
+
+# 날짜 태그(YYYY.M.D)를 밀면 npm → GHCR → GitHub Release 를 한 번에 낸다.
+# 사람이 하는 일은 버전 커밋과 `git push origin <tag>` 뿐이다.
+#
+# 필요한 시크릿:
+#   NPM_TOKEN            — npmjs granular token(publish, 패키지 deskrpg). --provenance 로 서명한다.
+#   GHCR 는 저장소 GITHUB_TOKEN (packages: write) 를 사용한다.
+on:
+  push:
+    tags: ["20[0-9][0-9].[0-9]*.[0-9]*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/dandacompany/deskrpg
+
+jobs:
+  # 태그와 package.json 이 다르면 아무것도 내보내지 않는다.
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: 공개 트리 메타 파일 검사
+        run: bash scripts/check-public-tree.sh
+      - id: ver
+        run: |
+          # 날짜 태그는 반드시 이미 master 에 올라온 커밋을 가리켜야 한다.
+          git fetch --no-tags origin master
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/origin/master; then
+            echo "태그 커밋은 origin/master 에 포함되어야 합니다." >&2
+            exit 1
+          fi
+          TAG="${GITHUB_REF_NAME}"
+          PKG="$(node -p "require('./package.json').version")"
+          if [ "$TAG" != "$PKG" ]; then
+            echo "태그($TAG)와 package.json($PKG)이 다릅니다. 버전 커밋을 먼저 미세요." >&2
+            exit 1
+          fi
+          for f in README.md README.ko.md; do
+            grep -q "$PKG" "$f" || { echo "$f 에 $PKG 가 없습니다." >&2; exit 1; }
+          done
+          echo "version=$PKG" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # CI 와 동일한 포맷 관문을 공개 게시 전에 다시 확인한다.
+      - name: 포매팅 검사
+        run: npm run format:check
+      - run: npm run test
+      - run: npm run typecheck
+      - run: npm run lint
+      # Docker 플랫폼 이미지를 내기 전에 tarball을 검증한다.
+      - name: Smoke npm tarball before publishing
+        run: |
+          smoke_dir="$(mktemp -d)"
+          npm pack --pack-destination "$smoke_dir" >/dev/null
+          tarball="$smoke_dir/deskrpg-$(node -p "require('./package.json').version").tgz"
+          test -f "$tarball"
+          python3 scripts/check-npm-tarball.py "$tarball"
+          bash scripts/smoke-npm-install.sh "$tarball"
+
+  npm:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      id-token: write # npm --provenance (Sigstore OIDC)
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: https://registry.npmjs.org
+      - run: npm ci
+      # 실제 npm publish에 넘길 tarball을 검사하고 실행한다.
+      - name: Publish deskrpg@${{ needs.verify.outputs.version }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          V="${{ needs.verify.outputs.version }}"
+          if npm view "deskrpg@$V" version >/dev/null 2>&1; then
+            echo "deskrpg@$V 는 이미 발행돼 있어 건너뜁니다."
+          else
+            pack_dir="$(mktemp -d)"
+            npm pack --pack-destination "$pack_dir" >/dev/null
+            tarball="$pack_dir/deskrpg-$V.tgz"
+            test -f "$tarball"
+            python3 scripts/check-npm-tarball.py "$tarball"
+            bash scripts/smoke-npm-install.sh "$tarball"
+            npm publish "$tarball" --provenance --access public
+          fi
+      - name: Wait for registry propagation
+        run: |
+          V="${{ needs.verify.outputs.version }}"
+          # 대용량 런타임 에셋의 npm 레지스트리 처리에는 2분 이상 걸릴 수 있다.
+          for i in $(seq 1 240); do
+            npm view "deskrpg@$V" version >/dev/null 2>&1 && { echo "propagated after attempt $i"; exit 0; }
+            sleep 5
+          done
+          echo "registry never propagated" >&2; exit 1
+      # 소스 트리에서의 테스트는 npm 전역 설치 위치(node_modules) 문제를 못 잡았다.
+      - name: Smoke registry-installed npm CLI
+        env:
+          V: ${{ needs.verify.outputs.version }}
+        run: bash scripts/smoke-npm-install.sh "deskrpg@$V"
+
+  docker-platform:
+    needs: verify
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      # 각 네이티브 러너에서 한 플랫폼만 빌드한다. QEMU 크로스 빌드는 없다.
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/${{ matrix.arch }}
+          push: true
+          tags: ${{ env.IMAGE }}:${{ needs.verify.outputs.version }}-${{ matrix.arch }}
+          cache-from: type=gha,scope=${{ matrix.arch }}
+          cache-to: type=gha,scope=${{ matrix.arch }},mode=max
+
+  docker-manifest:
+    # npm 설치 스모크가 실패하면 :latest 를 공개하지 않는다.
+    needs: [verify, npm, docker-platform]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Join native platform images
+        env:
+          V: ${{ needs.verify.outputs.version }}
+        run: |
+          docker buildx imagetools create \
+            -t "$IMAGE:$V" -t "$IMAGE:latest" \
+            "$IMAGE:$V-amd64" "$IMAGE:$V-arm64"
+      - name: Verify both platforms
+        env:
+          V: ${{ needs.verify.outputs.version }}
+        run: |
+          docker buildx imagetools inspect "$IMAGE:$V" > /tmp/deskrpg-platforms
+          grep -Eq 'Platform:[[:space:]]+linux/amd64' /tmp/deskrpg-platforms
+          grep -Eq 'Platform:[[:space:]]+linux/arm64' /tmp/deskrpg-platforms
+      - name: Verify public anonymous pull
+        env:
+          V: ${{ needs.verify.outputs.version }}
+        run: |
+          docker logout ghcr.io
+          docker buildx imagetools inspect "$IMAGE:$V" > /dev/null
+
+  github-release:
+    needs: [verify, npm, docker-manifest]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Release notes
+        env:
+          V: ${{ needs.verify.outputs.version }}
+        run: |
+          PREV="$(git describe --tags --abbrev=0 "${GITHUB_REF_NAME}^" 2>/dev/null || true)"
+          {
+            echo "## DeskRPG $V"
+            echo
+            echo "### Changes"
+            if [ -n "$PREV" ]; then git log --no-merges --pretty='- %s' "$PREV..${GITHUB_REF_NAME}"; else git log --no-merges --pretty='- %s' -n 30; fi
+            echo
+            echo "### Install"
+            echo '```'
+            echo "npm install -g deskrpg@$V"
+            echo "docker pull ghcr.io/dandacompany/deskrpg:$V   # linux/amd64 + linux/arm64"
+            echo '```'
+            echo
+            echo "- npm: https://www.npmjs.com/package/deskrpg/v/$V (provenance signed)"
+            echo "- GHCR: https://github.com/dandacompany/deskrpg/pkgs/container/deskrpg"
+          } > /tmp/notes.md
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          V: ${{ needs.verify.outputs.version }}
+        run: gh release create "$V" --title "DeskRPG $V" --notes-file /tmp/notes.md --verify-tag

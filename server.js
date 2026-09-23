@@ -1,0 +1,225 @@
+// Custom server — wraps Next.js standalone with Socket.io on a single port
+// Hooks into startServer's httpServer after it starts
+const path = require("node:path");
+// 별칭 해석을 가장 먼저 심는다 — 아래 require 들이 이미 `@/` 를 타고 들어간다.
+require("./src/lib/path-alias.js").installPathAlias(__dirname);
+const { Server } = require("socket.io");
+const {
+  getInternalSocketHostname,
+  isInternalRequestAuthorized,
+} = require("./src/lib/internal-transport.js");
+const { bootstrapRuntimeEnv } = require("./src/lib/runtime-env-bootstrap.js");
+const {
+  checkDatabaseReachable,
+  hostSetupHint,
+  inspectEnvironment,
+  reportEnvironmentInspection,
+} = require("./src/lib/startup-check.js");
+
+const dir = __dirname;
+process.env.NODE_ENV = "production";
+// Standalone server runs on HTTP localhost — default to insecure cookies
+// so browsers accept Set-Cookie. Override with COOKIE_SECURE=true for HTTPS.
+if (!process.env.COOKIE_SECURE) process.env.COOKIE_SECURE = "false";
+process.chdir(dir);
+
+const currentPort = parseInt(process.env.PORT, 10) || 3000;
+const hostname = process.env.HOSTNAME || "0.0.0.0";
+
+// Load Next.js config from standalone build
+const nextConfig = require(path.join(dir, ".next", "required-server-files.json")).config;
+process.env.__NEXT_PRIVATE_STANDALONE_CONFIG = JSON.stringify(nextConfig);
+
+function getRuntimeSqlitePath() {
+  try {
+    return require(path.join(dir, "src", "lib", "runtime-paths.js")).getDeskRpgSqlitePath();
+  } catch {
+    return null;
+  }
+}
+
+require("next");
+const { startServer } = require("next/dist/server/lib/start-server");
+
+async function main() {
+  // 런타임 홈의 값을 환경에 올린다 — 설정된 값은 덮지 않는다.
+  bootstrapRuntimeEnv({ packageRoot: dir });
+
+  // 기동 직전 환경 검증 — errors 는 즉시 중단, warnings 는 찍고 계속.
+  // DATABASE_URL 없이 SQLite 로 돌던 사용자는 경고만 보고 그대로 뜬다.
+  const inspection = inspectEnvironment(process.env);
+  const hint = hostSetupHint();
+  if (hint) console.log(`[startup] ${hint}`);
+  if (!reportEnvironmentInspection(inspection)) {
+    console.error("[startup] 환경 설정이 올바르지 않아 서버를 시작하지 않습니다.");
+    process.exit(1);
+  }
+
+  const unwrapTsModule = (moduleNamespace) => {
+    if (
+      moduleNamespace &&
+      typeof moduleNamespace === "object" &&
+      "default" in moduleNamespace &&
+      moduleNamespace.default &&
+      typeof moduleNamespace.default === "object"
+    ) {
+      return moduleNamespace.default;
+    }
+    return moduleNamespace;
+  };
+  const socketHandlers = unwrapTsModule(await import("./src/server/socket-handlers.ts"));
+  const { setupSocketHandlers, getRoomUserIds, getSocketIdsForUser } = socketHandlers;
+
+  // Start Next.js (this creates and listens on the HTTP server)
+  await startServer({
+    dir,
+    isDev: false,
+    config: nextConfig,
+    hostname,
+    port: currentPort,
+    allowRetry: false,
+  });
+
+  // Get the underlying HTTP server from the return value
+  // startServer returns { port, hostname } but the HTTP server is
+  // already listening. We need to access it differently.
+  //
+  // Alternative: use the http module to find the listening server
+  const http = require("node:http");
+  // Simpler: create Socket.io on a separate internal port, proxy via Caddy path
+  const SOCKET_PORT = currentPort + 1; // 3001
+  const socketHttpServer = http.createServer();
+  const io = new Server(socketHttpServer, {
+    path: "/socket.io",
+    cors: { origin: "*" },
+    maxHttpBufferSize: 20e6, // 20 MB — supports 3 × 5 MB file attachments
+  });
+
+  // 예전에는 여기에 OpenClaw 게이트웨이 커넥션 캐시와 /_internal/rpc 브리지가 있었다.
+  // API 라우트가 그 브리지로 agents.create / agents.files.set 을 불러 게이트웨이
+  // 워크스페이스에 페르소나 파일을 써 넣었다. OpenClaw 가 사라지면서 그 개념 전체가
+  // 없어졌다 — 페르소나는 DB 에만 남고, Hermes 프로필은 자기 홈을 직접 들고 있다.
+  // 플레이어/세션 상태는 socket-handlers.ts 에 있다.
+
+  const { refreshChannelMap } = setupSocketHandlers(io);
+
+  // Internal HTTP endpoints for cross-process communication
+  socketHttpServer.on("request", (req, res) => {
+    if (!req.url || !req.url.startsWith("/_internal")) return;
+
+    res.setHeader("Content-Type", "application/json");
+
+    if (!isInternalRequestAuthorized(req.headers)) {
+      res.writeHead(403);
+      res.end(JSON.stringify({ ok: false, error: "Forbidden" }));
+      return;
+    }
+
+    // Authenticated cross-process migration boundary, also registered locally in dev.
+    if (req.method === "POST" && req.url === "/_internal/map-refresh") {
+      let body = "";
+      req.on("data", (chunk) => {
+        body += chunk;
+      });
+      req.on("end", async () => {
+        try {
+          const { action, channelId, lease } = JSON.parse(body);
+          if (
+            !["begin", "finish"].includes(action) ||
+            typeof channelId !== "string" ||
+            channelId.length > 128
+          )
+            throw Error("Invalid request");
+          const result = await refreshChannelMap(action, channelId, lease);
+          res.writeHead(200);
+          res.end(JSON.stringify({ lease: result }));
+        } catch {
+          res.writeHead(503);
+          res.end(JSON.stringify({ error: "Map refresh unavailable" }));
+        }
+      });
+      return;
+    }
+
+    // POST /_internal/emit
+    if (req.method === "POST" && req.url === "/_internal/emit") {
+      let body = "";
+      req.on("data", (chunk) => {
+        body += chunk;
+      });
+      req.on("end", () => {
+        try {
+          const { event, room, targetUserId, payload } = JSON.parse(body);
+
+          if (targetUserId) {
+            for (const socketId of getSocketIdsForUser(targetUserId)) {
+              io.to(socketId).emit(event, payload);
+              if (event === "member:kicked" && payload?.channelId) {
+                const targetSocket = io.sockets.sockets.get(socketId);
+                if (targetSocket) {
+                  targetSocket.leave(payload.channelId);
+                }
+              }
+            }
+          } else if (room) {
+            io.to(room).emit(event, payload);
+          }
+
+          res.writeHead(200);
+          res.end(JSON.stringify({ ok: true }));
+        } catch {
+          res.writeHead(400);
+          res.end(JSON.stringify({ error: "Invalid request" }));
+        }
+      });
+      return;
+    }
+
+    // GET /_internal/room-members?channelId=X
+    if (req.method === "GET" && req.url.startsWith("/_internal/room-members")) {
+      const url = new URL(req.url, "http://localhost");
+      const channelId = url.searchParams.get("channelId");
+
+      if (!channelId) {
+        res.writeHead(400);
+        res.end(JSON.stringify({ error: "channelId required" }));
+        return;
+      }
+
+      const userIds = getRoomUserIds(io, channelId);
+
+      res.writeHead(200);
+      res.end(JSON.stringify({ userIds }));
+      return;
+    }
+
+    res.writeHead(404);
+    res.end(JSON.stringify({ error: "Not found" }));
+  });
+
+  // DB 도달성은 기동을 막지 않는다 — 실패해도 경고만 남긴다(기존 동작 유지).
+  const dbProbe = await checkDatabaseReachable({
+    databaseUrl: process.env.DATABASE_URL,
+    sqlitePath: process.env.SQLITE_PATH || getRuntimeSqlitePath(),
+    // 앱이 실제로 쓰는 쪽을 찌른다 — SQLite 런타임에도 .env 에 옛 DATABASE_URL 이 남아 있다.
+    target: inspection.dbTarget,
+  });
+  if (dbProbe.ok) {
+    console.log(`[startup] DB(${dbProbe.target}) 확인: ${dbProbe.message}`);
+  } else {
+    console.warn(`[startup] 경고: ${dbProbe.message}`);
+  }
+
+  const internalHostname = getInternalSocketHostname(process.env);
+  socketHttpServer.listen(SOCKET_PORT, internalHostname, () => {
+    console.log(`[socket.io] Listening on http://${internalHostname}:${SOCKET_PORT}`);
+  });
+}
+
+main().catch((err) => {
+  console.error(
+    "[startup] 서버를 시작하지 못했습니다 — 아래 스택의 첫 줄이 직접 원인입니다. `deskrpg doctor` 로 환경·DB·포트를 먼저 점검하세요.",
+  );
+  console.error(err);
+  process.exit(1);
+});

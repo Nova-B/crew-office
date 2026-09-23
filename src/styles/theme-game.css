@@ -1,0 +1,18 @@
+.theme-game {
+  --bg: #f5f5ee;
+  --bg-deep: #eeeee5;
+  --surface: #fcfcf8;
+  --surface-raised: #eaf0e5;
+  --border: #d6ddcf;
+  --border-subtle: #e4e8df;
+}
+
+/* One header offset shared by the scene, conversation panel and meeting workspace. */
+.ui2-game {
+  --game-header-height: 48px;
+}
+@media (max-width: 1000px) {
+  .ui2-game {
+    --game-header-height: 80px;
+  }
+}
