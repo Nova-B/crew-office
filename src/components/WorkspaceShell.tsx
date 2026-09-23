@@ -1,5 +1,6 @@
 "use client";
 
+import { HOME_PATH } from "@/lib/product-mode";
 import type { MouseEvent, ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -40,7 +41,7 @@ export default function WorkspaceShell({ children }: { children: ReactNode }) {
     <div className={`workspace-shell${editing ? " workspace-shell--editing" : ""}`}>
       <aside className="workspace-sidebar">
         <Link
-          href="/gateways"
+          href={HOME_PATH}
           className="workspace-brand"
           aria-label="DeskRPG"
           onClick={guardNavigation}

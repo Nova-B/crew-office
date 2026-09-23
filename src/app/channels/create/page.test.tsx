@@ -1,5 +1,6 @@
 import "../../../test-setup/dom";
 
+import { HERMES_UI_ENABLED } from "@/lib/product-mode";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { act } from "react";
@@ -69,46 +70,51 @@ async function render(query: string) {
   };
 }
 
-test("authorized gateway prefill connects the created office and warns if removed", async () => {
-  const { el, calls, cleanup } = await render("gatewayId=gw-2");
-  try {
-    const select = [...el.querySelectorAll("select")].find((element) =>
-      [...element.options].some((option) => option.value === "gw-2"),
-    );
-    assert.ok(select);
-    assert.equal(select.value, "gw-2");
-    assert.doesNotMatch(el.textContent ?? "", /AI 게이트웨이를 연결하지 않으면/);
-    const name = el.querySelector<HTMLInputElement>('input[maxlength="100"]');
-    assert.ok(name);
-    await act(async () => {
-      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
-      setter?.call(name, "Office");
-      name.dispatchEvent(new Event("input", { bubbles: true }));
-    });
-    await act(async () => {
-      el.querySelector<HTMLFormElement>("form")?.dispatchEvent(
-        new Event("submit", { bubbles: true, cancelable: true }),
+// crew-office: 게이트웨이 항목은 Hermes 화면이라 숨긴다(product-mode.ts). 켜 둘 때만 검사한다.
+test(
+  "authorized gateway prefill connects the created office and warns if removed",
+  { skip: !HERMES_UI_ENABLED && "Hermes UI 가 꺼져 있다(crew-office)" },
+  async () => {
+    const { el, calls, cleanup } = await render("gatewayId=gw-2");
+    try {
+      const select = [...el.querySelectorAll("select")].find((element) =>
+        [...element.options].some((option) => option.value === "gw-2"),
       );
-    });
-    assert.deepEqual(calls.find((call) => call.url === "/api/channels")?.body?.gatewayConfig, {
-      gatewayId: "gw-2",
-    });
-    await act(async () => {
-      const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(select), "value")?.set;
-      setter?.call(select, "gw-1");
-      select.dispatchEvent(new Event("change", { bubbles: true }));
-    });
-    assert.equal(select.value, "gw-1", "user selection must survive the query prefill");
-    const custom = [...el.querySelectorAll("button")].find((button) =>
-      button.textContent?.includes("직접"),
-    );
-    assert.ok(custom);
-    await act(async () => custom.click());
-    assert.match(el.textContent ?? "", /AI 게이트웨이를 연결하지 않으면/);
-  } finally {
-    await cleanup();
-  }
-});
+      assert.ok(select);
+      assert.equal(select.value, "gw-2");
+      assert.doesNotMatch(el.textContent ?? "", /AI 게이트웨이를 연결하지 않으면/);
+      const name = el.querySelector<HTMLInputElement>('input[maxlength="100"]');
+      assert.ok(name);
+      await act(async () => {
+        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+        setter?.call(name, "Office");
+        name.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      await act(async () => {
+        el.querySelector<HTMLFormElement>("form")?.dispatchEvent(
+          new Event("submit", { bubbles: true, cancelable: true }),
+        );
+      });
+      assert.deepEqual(calls.find((call) => call.url === "/api/channels")?.body?.gatewayConfig, {
+        gatewayId: "gw-2",
+      });
+      await act(async () => {
+        const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(select), "value")?.set;
+        setter?.call(select, "gw-1");
+        select.dispatchEvent(new Event("change", { bubbles: true }));
+      });
+      assert.equal(select.value, "gw-1", "user selection must survive the query prefill");
+      const custom = [...el.querySelectorAll("button")].find((button) =>
+        button.textContent?.includes("직접"),
+      );
+      assert.ok(custom);
+      await act(async () => custom.click());
+      assert.match(el.textContent ?? "", /AI 게이트웨이를 연결하지 않으면/);
+    } finally {
+      await cleanup();
+    }
+  },
+);
 
 test("unknown gateway query is ignored", async () => {
   const { el, cleanup } = await render("gatewayId=unknown");

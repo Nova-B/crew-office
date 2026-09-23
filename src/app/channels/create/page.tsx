@@ -1,5 +1,6 @@
 "use client";
 
+import { HERMES_UI_ENABLED } from "@/lib/product-mode";
 import { Suspense, useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -395,174 +396,179 @@ function CreateChannelPageInner() {
 
           <OfficeEnvironmentPicker value={environmentId} onChange={setEnvironmentId} />
 
-          {/* ============================================================= */}
-          {/* AI Gateway (Optional) */}
-          {/* ============================================================= */}
-          <div className="border border-border rounded-lg overflow-hidden">
-            <button
-              type="button"
-              onClick={() => setGatewayOpen(!gatewayOpen)}
-              className="w-full flex items-center justify-between px-4 py-3 bg-surface hover:bg-surface-raised text-sm font-semibold"
-            >
-              <span>{t("gateway.title")}</span>
-              <ChevronRight
-                className={`w-4 h-4 text-text-muted transition-transform duration-200 ${gatewayOpen ? "rotate-90" : ""}`}
-              />
-            </button>
+          {/* crew-office: 직원은 오피스 안에서 CLI 직원으로 고용한다 — Hermes 게이트웨이 항목은 숨긴다. */}
+          {HERMES_UI_ENABLED && (
+            <>
+              {/* ============================================================= */}
+              {/* AI Gateway (Optional) */}
+              {/* ============================================================= */}
+              <div className="border border-border rounded-lg overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setGatewayOpen(!gatewayOpen)}
+                  className="w-full flex items-center justify-between px-4 py-3 bg-surface hover:bg-surface-raised text-sm font-semibold"
+                >
+                  <span>{t("gateway.title")}</span>
+                  <ChevronRight
+                    className={`w-4 h-4 text-text-muted transition-transform duration-200 ${gatewayOpen ? "rotate-90" : ""}`}
+                  />
+                </button>
 
-            {gatewayOpen && (
-              <div className="p-4 space-y-4 bg-surface/50">
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setGatewaySelectionTouched(true);
-                      setGatewayMode("direct");
-                      resetGatewayTestState();
-                    }}
-                    className={`px-3 py-1.5 rounded text-xs font-semibold ${
-                      gatewayMode === "direct"
-                        ? "bg-primary text-white"
-                        : "bg-surface-raised text-text-muted"
-                    }`}
-                  >
-                    {t("settings.gatewayUseCustom")}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setGatewaySelectionTouched(true);
-                      setGatewayMode("stored");
-                      resetGatewayTestState();
-                    }}
-                    className={`px-3 py-1.5 rounded text-xs font-semibold ${
-                      gatewayMode === "stored"
-                        ? "bg-primary text-white"
-                        : "bg-surface-raised text-text-muted"
-                    }`}
-                  >
-                    {t("settings.gatewayUseSaved")}
-                  </button>
-                </div>
-
-                {gatewayMode === "stored" ? (
-                  <div className="space-y-3">
-                    <div>
-                      <label className="block text-xs font-semibold mb-1 text-text-secondary">
-                        {storedGatewaysLoading
-                          ? t("settings.loadingGateway")
-                          : t("settings.gatewaySaved")}
-                      </label>
-                      <select
-                        value={selectedGatewayId}
-                        onChange={(e) => {
+                {gatewayOpen && (
+                  <div className="p-4 space-y-4 bg-surface/50">
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
                           setGatewaySelectionTouched(true);
-                          setSelectedGatewayId(e.target.value);
+                          setGatewayMode("direct");
                           resetGatewayTestState();
                         }}
-                        disabled={storedGatewaysLoading || storedGateways.length === 0}
-                        className="w-full px-3 py-2 bg-surface border border-border rounded text-text text-sm focus:outline-none focus:ring-2 focus:ring-primary-light focus:border-transparent disabled:opacity-60"
+                        className={`px-3 py-1.5 rounded text-xs font-semibold ${
+                          gatewayMode === "direct"
+                            ? "bg-primary text-white"
+                            : "bg-surface-raised text-text-muted"
+                        }`}
                       >
-                        {storedGateways.length > 0 ? (
-                          <>
-                            <option value="">
-                              {storedGatewaysLoading
-                                ? t("settings.loadingGateway")
-                                : t("settings.gatewaySelect")}
-                            </option>
-                            {storedGateways.map((gateway) => (
-                              <option key={gateway.id} value={gateway.id}>
-                                {formatGatewayLabel(gateway)}
-                              </option>
-                            ))}
-                          </>
-                        ) : (
-                          <option value="">
-                            {storedGatewaysLoading
-                              ? t("settings.loadingGateway")
-                              : t("settings.gatewayNoSaved")}
-                          </option>
-                        )}
-                      </select>
-                      {storedGatewaysError && (
-                        <p className="mt-1 text-xs text-danger">{storedGatewaysError}</p>
-                      )}
-                      {selectedStoredGateway && (
-                        <p className="mt-1 text-xs text-text-muted">
-                          {selectedStoredGateway.canEditCredentials
-                            ? selectedStoredGateway.baseUrl
-                            : t("settings.gatewaySharedReadOnly")}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    <div>
-                      <label className="block text-xs font-semibold mb-1 text-text-secondary">
-                        {t("gateway.url")}
-                      </label>
-                      <input
-                        type="text"
-                        value={gatewayUrl}
-                        onChange={(e) => setGatewayUrl(e.target.value)}
-                        className="w-full px-3 py-2 bg-surface border border-border rounded text-text placeholder-text-dim focus:outline-none focus:ring-2 focus:ring-primary-light focus:border-transparent text-sm"
-                        placeholder={t("gateway.urlPlaceholder")}
-                      />
+                        {t("settings.gatewayUseCustom")}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setGatewaySelectionTouched(true);
+                          setGatewayMode("stored");
+                          resetGatewayTestState();
+                        }}
+                        className={`px-3 py-1.5 rounded text-xs font-semibold ${
+                          gatewayMode === "stored"
+                            ? "bg-primary text-white"
+                            : "bg-surface-raised text-text-muted"
+                        }`}
+                      >
+                        {t("settings.gatewayUseSaved")}
+                      </button>
                     </div>
 
-                    <div>
-                      <label className="block text-xs font-semibold mb-1 text-text-secondary">
-                        {t("gateway.token")}
-                      </label>
-                      <div className="relative">
-                        <input
-                          type={showGatewayToken ? "text" : "password"}
-                          value={gatewayToken}
-                          onChange={(e) => setGatewayToken(e.target.value)}
-                          className="w-full px-3 py-2 bg-surface border border-border rounded text-text placeholder-text-dim focus:outline-none focus:ring-2 focus:ring-primary-light focus:border-transparent text-sm pr-16"
-                          placeholder={t("gateway.tokenPlaceholder")}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowGatewayToken(!showGatewayToken)}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 text-text-muted hover:text-text text-xs px-2 py-1"
-                        >
-                          {showGatewayToken ? t("common.hide") : t("common.show")}
-                        </button>
+                    {gatewayMode === "stored" ? (
+                      <div className="space-y-3">
+                        <div>
+                          <label className="block text-xs font-semibold mb-1 text-text-secondary">
+                            {storedGatewaysLoading
+                              ? t("settings.loadingGateway")
+                              : t("settings.gatewaySaved")}
+                          </label>
+                          <select
+                            value={selectedGatewayId}
+                            onChange={(e) => {
+                              setGatewaySelectionTouched(true);
+                              setSelectedGatewayId(e.target.value);
+                              resetGatewayTestState();
+                            }}
+                            disabled={storedGatewaysLoading || storedGateways.length === 0}
+                            className="w-full px-3 py-2 bg-surface border border-border rounded text-text text-sm focus:outline-none focus:ring-2 focus:ring-primary-light focus:border-transparent disabled:opacity-60"
+                          >
+                            {storedGateways.length > 0 ? (
+                              <>
+                                <option value="">
+                                  {storedGatewaysLoading
+                                    ? t("settings.loadingGateway")
+                                    : t("settings.gatewaySelect")}
+                                </option>
+                                {storedGateways.map((gateway) => (
+                                  <option key={gateway.id} value={gateway.id}>
+                                    {formatGatewayLabel(gateway)}
+                                  </option>
+                                ))}
+                              </>
+                            ) : (
+                              <option value="">
+                                {storedGatewaysLoading
+                                  ? t("settings.loadingGateway")
+                                  : t("settings.gatewayNoSaved")}
+                              </option>
+                            )}
+                          </select>
+                          {storedGatewaysError && (
+                            <p className="mt-1 text-xs text-danger">{storedGatewaysError}</p>
+                          )}
+                          {selectedStoredGateway && (
+                            <p className="mt-1 text-xs text-text-muted">
+                              {selectedStoredGateway.canEditCredentials
+                                ? selectedStoredGateway.baseUrl
+                                : t("settings.gatewaySharedReadOnly")}
+                            </p>
+                          )}
+                        </div>
                       </div>
+                    ) : (
+                      <div className="space-y-3">
+                        <div>
+                          <label className="block text-xs font-semibold mb-1 text-text-secondary">
+                            {t("gateway.url")}
+                          </label>
+                          <input
+                            type="text"
+                            value={gatewayUrl}
+                            onChange={(e) => setGatewayUrl(e.target.value)}
+                            className="w-full px-3 py-2 bg-surface border border-border rounded text-text placeholder-text-dim focus:outline-none focus:ring-2 focus:ring-primary-light focus:border-transparent text-sm"
+                            placeholder={t("gateway.urlPlaceholder")}
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-semibold mb-1 text-text-secondary">
+                            {t("gateway.token")}
+                          </label>
+                          <div className="relative">
+                            <input
+                              type={showGatewayToken ? "text" : "password"}
+                              value={gatewayToken}
+                              onChange={(e) => setGatewayToken(e.target.value)}
+                              className="w-full px-3 py-2 bg-surface border border-border rounded text-text placeholder-text-dim focus:outline-none focus:ring-2 focus:ring-primary-light focus:border-transparent text-sm pr-16"
+                              placeholder={t("gateway.tokenPlaceholder")}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowGatewayToken(!showGatewayToken)}
+                              className="absolute right-2 top-1/2 -translate-y-1/2 text-text-muted hover:text-text text-xs px-2 py-1"
+                            >
+                              {showGatewayToken ? t("common.hide") : t("common.show")}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    <div>
+                      <button
+                        type="button"
+                        onClick={handleTestConnection}
+                        disabled={
+                          testingConnection ||
+                          (gatewayMode === "stored" ? !selectedGatewayId : !gatewayUrl.trim())
+                        }
+                        className="px-4 py-2 bg-primary hover:bg-primary-hover rounded text-sm font-semibold disabled:opacity-50 text-white"
+                      >
+                        {testingConnection ? t("gateway.testing") : t("gateway.testConnection")}
+                      </button>
+                      {gatewayConnectionState.status !== "idle" && (
+                        <GatewayStatusCard
+                          className="mt-3"
+                          status={gatewayConnectionState.status}
+                          error={gatewayConnectionState.error}
+                          detail={
+                            gatewayConnectionState.status === "connected"
+                              ? t("gateway.connected")
+                              : undefined
+                          }
+                        />
+                      )}
                     </div>
                   </div>
                 )}
-
-                <div>
-                  <button
-                    type="button"
-                    onClick={handleTestConnection}
-                    disabled={
-                      testingConnection ||
-                      (gatewayMode === "stored" ? !selectedGatewayId : !gatewayUrl.trim())
-                    }
-                    className="px-4 py-2 bg-primary hover:bg-primary-hover rounded text-sm font-semibold disabled:opacity-50 text-white"
-                  >
-                    {testingConnection ? t("gateway.testing") : t("gateway.testConnection")}
-                  </button>
-                  {gatewayConnectionState.status !== "idle" && (
-                    <GatewayStatusCard
-                      className="mt-3"
-                      status={gatewayConnectionState.status}
-                      error={gatewayConnectionState.error}
-                      detail={
-                        gatewayConnectionState.status === "connected"
-                          ? t("gateway.connected")
-                          : undefined
-                      }
-                    />
-                  )}
-                </div>
               </div>
-            )}
-          </div>
+            </>
+          )}
 
           {!(
             (gatewayMode === "stored" && selectedGatewayId) ||

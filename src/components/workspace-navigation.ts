@@ -9,14 +9,19 @@
  * `AI 제공자`(`/providers`)는 Hermes 이전 시절의 화면이라 뺐다 — Hermes 는 제공자 인증을
  * 프로필마다 자기 쪽에서 관리한다. 눌러도 이 제품의 흐름과 이어지지 않아 사용자를 잘못 이끈다.
  */
+import { HERMES_UI_ENABLED } from "@/lib/product-mode";
+
 export type WorkspaceNavKey = "gateways" | "profiles" | "characters" | "channels";
 
+const HERMES_NAV = new Set<WorkspaceNavKey>(["gateways", "profiles"]);
+
+// crew-office: Hermes 가 없으므로 흐름은 "내 캐릭터 → 사무실" 두 걸음이다. 직원은 사무실 안에서 고용한다.
 export const WORKSPACE_NAV: ReadonlyArray<{ key: WorkspaceNavKey; href: string }> = [
-  { key: "characters", href: "/characters" },
-  { key: "gateways", href: "/gateways" },
-  { key: "profiles", href: "/profiles" },
-  { key: "channels", href: "/channels" },
-];
+  { key: "characters" as const, href: "/characters" },
+  { key: "gateways" as const, href: "/gateways" },
+  { key: "profiles" as const, href: "/profiles" },
+  { key: "channels" as const, href: "/channels" },
+].filter((item) => HERMES_UI_ENABLED || !HERMES_NAV.has(item.key));
 
 /** 직원(Hermes 프로필) 화면 주소. 직원 관리는 `/profiles` 한 곳에서만 한다. */
 export function employeesHref(

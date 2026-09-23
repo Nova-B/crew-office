@@ -1,3 +1,4 @@
+import { HOME_PATH } from "@/lib/product-mode";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
@@ -22,7 +23,7 @@ export default async function Home() {
   if (token) {
     const payload = await verifyJWT(token);
     if (payload) {
-      redirect("/gateways");
+      redirect(HOME_PATH);
     }
   }
 

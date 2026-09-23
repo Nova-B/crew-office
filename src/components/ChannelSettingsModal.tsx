@@ -1,4 +1,5 @@
 "use client";
+import { HERMES_UI_ENABLED } from "@/lib/product-mode";
 import { useCallback, useEffect, useState } from "react";
 import {
   DEFAULT_NPC_MOTION,
@@ -75,7 +76,9 @@ export default function ChannelSettingsModal({
   onUpdated,
 }: ChannelSettingsModalProps) {
   const t = useT();
-  const [tab, setTab] = useState<ChannelSettingsTab>(initialTab);
+  const [tab, setTab] = useState<ChannelSettingsTab>(
+    !HERMES_UI_ENABLED && initialTab === "gateway" ? "settings" : initialTab,
+  );
   const [name, setName] = useState(channelName);
   const [description, setDescription] = useState(channelDescription || "");
   const [visibility, setVisibility] = useState(isPublic);
@@ -451,12 +454,15 @@ export default function ChannelSettingsModal({
           >
             {t("settings.members")}
           </button>
-          <button
-            onClick={() => setTab("gateway")}
-            className={`flex-1 py-2 text-sm font-semibold ${tab === "gateway" ? "text-info border-b-2 border-info" : "text-text-muted"}`}
-          >
-            {t("settings.gateway")}
-          </button>
+          {/* crew-office: "AI 연결" 은 Hermes 게이트웨이 설정이라 숨긴다(product-mode.ts). */}
+          {HERMES_UI_ENABLED && (
+            <button
+              onClick={() => setTab("gateway")}
+              className={`flex-1 py-2 text-sm font-semibold ${tab === "gateway" ? "text-info border-b-2 border-info" : "text-text-muted"}`}
+            >
+              {t("settings.gateway")}
+            </button>
+          )}
         </div>
 
         <div className="flex-1 overflow-y-auto p-5">

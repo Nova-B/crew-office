@@ -110,6 +110,7 @@ import PasswordModal from "@/components/PasswordModal";
 import ChannelSettingsModal from "@/components/ChannelSettingsModal";
 import ViewSettingsModal from "@/components/ViewSettingsModal";
 import CliEmployeeHireModal from "@/components/CliEmployeeHireModal";
+import { HERMES_UI_ENABLED } from "@/lib/product-mode";
 
 type CrewUiState = { paused: boolean; asksUsed: number; asksLimit: number };
 import type { NpcMotionConfig } from "@/lib/npc-motion-config";
@@ -303,6 +304,8 @@ function GamePageInner({ onFatal }: GamePageClientProps) {
     (ChatTaskDraft & { channelId: string; seq: number }) | null
   >(null);
   useEffect(() => {
+    // crew-office: 칸반은 Hermes 기능이라 3D 보드를 눌러도 열지 않는다(product-mode.ts).
+    if (!HERMES_UI_ENABLED) return;
     const open = () => setShowKanban(true);
     EventBus.on("kanban:open", open);
     return () => {
@@ -2762,7 +2765,7 @@ function GamePageInner({ onFatal }: GamePageClientProps) {
         npcMoveState={dialogMotion.phase}
         onReturnNpc={dialogNpc && dialogMotion.caller === socket?.id ? handleReturnNpc : undefined}
         dialogReport={dialogReport}
-        cron={channelId ? { channelId, socket, onToast: cronToast } : null}
+        cron={HERMES_UI_ENABLED && channelId ? { channelId, socket, onToast: cronToast } : null}
         onOpenNoticeCard={openNoticeCard}
         onOpenNoticeCronJob={openNoticeCronJob}
         onOpenNoticeApproval={() => setShowAttention(true)}
@@ -2771,12 +2774,16 @@ function GamePageInner({ onFatal }: GamePageClientProps) {
         onMarkSeen={markPanelTabSeen}
         cardsRefreshTick={kanbanRefreshTick}
         onOpenAssignedCard={openNoticeCard}
-        onCreateTaskFromChat={(draft) => {
-          if (!channelId) return;
-          setChatTaskDraft({ ...draft, channelId, seq: Date.now() });
-          setKanbanCard(null);
-          setShowKanban(true);
-        }}
+        onCreateTaskFromChat={
+          HERMES_UI_ENABLED
+            ? (draft) => {
+                if (!channelId) return;
+                setChatTaskDraft({ ...draft, channelId, seq: Date.now() });
+                setKanbanCard(null);
+                setShowKanban(true);
+              }
+            : undefined
+        }
         npcArtifactChips={npcArtifactChips}
         onOpenArtifact={openArtifact}
       />
@@ -2824,7 +2831,7 @@ function GamePageInner({ onFatal }: GamePageClientProps) {
             onInvitePeople={() => setShowSharePopup(true)}
             onEditSelf={handleEditCharacter}
             onSetStartPosition={isOwner ? handleStartPositionSetting : undefined}
-            onAddNpc={isOwner ? handleHireNpc : undefined}
+            onAddNpc={HERMES_UI_ENABLED && isOwner ? handleHireNpc : undefined}
             addNpcDisabled={!gatewayId}
             onHireCliEmployee={isOwner ? () => setShowCliHire(true) : undefined}
             crewState={crewState}
@@ -2982,34 +2989,35 @@ function GamePageInner({ onFatal }: GamePageClientProps) {
 
         {/* Right: grouped controls */}
         <div className="header-controls">
-          {/* Gateway status */}
-          {channel?.hasGateway ? (
-            <button
-              onClick={() => openChannelSettings("gateway")}
-              title={t(channel?.hasGateway ? "game.aiGateway" : "game.gatewayConnect")}
-              aria-label={t(channel?.hasGateway ? "game.aiGateway" : "game.gatewayConnect")}
-              className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-sky-500/10 border border-sky-400/20 text-caption text-sky-700 hover:bg-sky-500/20"
-            >
-              <span className="w-2 h-2 rounded-full bg-sky-300" />
-              <span className="header-full-label">{t("game.aiGateway")}</span>
-              <span className="header-mobile-label" aria-hidden="true">
-                AI
-              </span>
-            </button>
-          ) : (
-            <button
-              onClick={() => openChannelSettings("gateway")}
-              title={t(channel?.hasGateway ? "game.aiGateway" : "game.gatewayConnect")}
-              aria-label={t(channel?.hasGateway ? "game.aiGateway" : "game.gatewayConnect")}
-              className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-amber-500/10 border border-amber-400/20 text-caption text-amber-700 hover:bg-amber-500/20"
-            >
-              <span className="w-2 h-2 rounded-full bg-amber-300" />
-              <span className="header-full-label">{t("game.gatewayConnect")}</span>
-              <span className="header-mobile-label" aria-hidden="true">
-                AI +
-              </span>
-            </button>
-          )}
+          {/* Gateway status — crew-office 는 Hermes 게이트웨이를 쓰지 않는다(product-mode.ts). */}
+          {HERMES_UI_ENABLED &&
+            (channel?.hasGateway ? (
+              <button
+                onClick={() => openChannelSettings("gateway")}
+                title={t(channel?.hasGateway ? "game.aiGateway" : "game.gatewayConnect")}
+                aria-label={t(channel?.hasGateway ? "game.aiGateway" : "game.gatewayConnect")}
+                className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-sky-500/10 border border-sky-400/20 text-caption text-sky-700 hover:bg-sky-500/20"
+              >
+                <span className="w-2 h-2 rounded-full bg-sky-300" />
+                <span className="header-full-label">{t("game.aiGateway")}</span>
+                <span className="header-mobile-label" aria-hidden="true">
+                  AI
+                </span>
+              </button>
+            ) : (
+              <button
+                onClick={() => openChannelSettings("gateway")}
+                title={t(channel?.hasGateway ? "game.aiGateway" : "game.gatewayConnect")}
+                aria-label={t(channel?.hasGateway ? "game.aiGateway" : "game.gatewayConnect")}
+                className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-amber-500/10 border border-amber-400/20 text-caption text-amber-700 hover:bg-amber-500/20"
+              >
+                <span className="w-2 h-2 rounded-full bg-amber-300" />
+                <span className="header-full-label">{t("game.gatewayConnect")}</span>
+                <span className="header-mobile-label" aria-hidden="true">
+                  AI +
+                </span>
+              </button>
+            ))}
 
           {/* Counts remain in the header; the full roster now lives in the workspace navigator. */}
           <div
@@ -3045,28 +3053,32 @@ function GamePageInner({ onFatal }: GamePageClientProps) {
               data-attempts={reportAttemptsDiagnostics}
               data-returning={[...returningNpcsRef.current].join(",")}
             />
-            <ReportBadge
-              queue={reportQueue}
-              current={reportingItem}
-              dismissedIds={dismissedReports}
-              onOpen={openReport}
-              onRecall={recallDismissedReport}
-            />
+            {HERMES_UI_ENABLED && (
+              <ReportBadge
+                queue={reportQueue}
+                current={reportingItem}
+                dismissedIds={dismissedReports}
+                onOpen={openReport}
+                onRecall={recallDismissedReport}
+              />
+            )}
           </div>
 
-          <button
-            type="button"
-            data-testid="attention-entry"
-            onClick={() => setShowAttention(true)}
-            title={t("attention.title")}
-            aria-label={t("attention.title")}
-            className="flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-caption font-semibold text-text-secondary hover:bg-surface-raised"
-          >
-            <span className="header-full-label">{t("attention.title")}</span>
-            <span className="header-mobile-label" aria-hidden="true">
-              !
-            </span>
-          </button>
+          {HERMES_UI_ENABLED && (
+            <button
+              type="button"
+              data-testid="attention-entry"
+              onClick={() => setShowAttention(true)}
+              title={t("attention.title")}
+              aria-label={t("attention.title")}
+              className="flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-caption font-semibold text-text-secondary hover:bg-surface-raised"
+            >
+              <span className="header-full-label">{t("attention.title")}</span>
+              <span className="header-mobile-label" aria-hidden="true">
+                !
+              </span>
+            </button>
+          )}
 
           {/* 회의실 입장 — 회의 화면에서는 숨긴다. 나가는 버튼은 맵 위(ThreeGame)에 있다. */}
           {mode === "office" && (
@@ -3085,44 +3097,49 @@ function GamePageInner({ onFatal }: GamePageClientProps) {
             </button>
           )}
 
-          {/* Kanban board (T8) — 옛 태스크 보드 버튼 자리 */}
-          <button
-            onClick={() => setShowKanban(true)}
-            title={t("kanban.title")}
-            aria-label={t("kanban.title")}
-            className="flex items-center gap-1 px-2.5 py-1 bg-primary/80 hover:bg-primary text-white rounded-md text-caption font-semibold"
-          >
-            <KanbanSquare className="w-3 h-3" />
-            <span className="header-full-label">{t("kanban.open")}</span>
-          </button>
+          {/* 칸반·크론·결과물·GitHub Star — Hermes 기능과 업스트림 홍보라 crew-office 에서는 숨긴다. */}
+          {HERMES_UI_ENABLED && (
+            <>
+              {/* Kanban board (T8) — 옛 태스크 보드 버튼 자리 */}
+              <button
+                onClick={() => setShowKanban(true)}
+                title={t("kanban.title")}
+                aria-label={t("kanban.title")}
+                className="flex items-center gap-1 px-2.5 py-1 bg-primary/80 hover:bg-primary text-white rounded-md text-caption font-semibold"
+              >
+                <KanbanSquare className="w-3 h-3" />
+                <span className="header-full-label">{t("kanban.open")}</span>
+              </button>
 
-          {/* 채널 크론 화면 (T10, R15) */}
-          <button
-            onClick={() => setShowCron(true)}
-            title={t("cron.title")}
-            aria-label={t("cron.title")}
-            className="flex items-center gap-1 px-2.5 py-1 bg-primary/80 hover:bg-primary text-white rounded-md text-caption font-semibold"
-          >
-            <AlarmClock className="w-3 h-3" />
-            <span className="header-full-label">{t("cron.open")}</span>
-          </button>
+              {/* 채널 크론 화면 (T10, R15) */}
+              <button
+                onClick={() => setShowCron(true)}
+                title={t("cron.title")}
+                aria-label={t("cron.title")}
+                className="flex items-center gap-1 px-2.5 py-1 bg-primary/80 hover:bg-primary text-white rounded-md text-caption font-semibold"
+              >
+                <AlarmClock className="w-3 h-3" />
+                <span className="header-full-label">{t("cron.open")}</span>
+              </button>
 
-          {/* 채널 결과물 */}
-          <button
-            onClick={() => openArtifacts()}
-            title={t("artifacts.title")}
-            aria-label={t("artifacts.title")}
-            className="flex items-center gap-1 px-2.5 py-1 bg-primary/80 hover:bg-primary text-white rounded-md text-caption font-semibold"
-          >
-            <Package className="w-3 h-3" />
-            <span className="header-full-label">{t("artifacts.open")}</span>
-          </button>
+              {/* 채널 결과물 */}
+              <button
+                onClick={() => openArtifacts()}
+                title={t("artifacts.title")}
+                aria-label={t("artifacts.title")}
+                className="flex items-center gap-1 px-2.5 py-1 bg-primary/80 hover:bg-primary text-white rounded-md text-caption font-semibold"
+              >
+                <Package className="w-3 h-3" />
+                <span className="header-full-label">{t("artifacts.open")}</span>
+              </button>
 
-          <GrowthStarButton
-            stars={appMeta.stars}
-            clicked={appMeta.starClicked}
-            onClick={appMeta.markStarClicked}
-          />
+              <GrowthStarButton
+                stars={appMeta.stars}
+                clicked={appMeta.starClicked}
+                onClick={appMeta.markStarClicked}
+              />
+            </>
+          )}
 
           {/* Separator */}
           <div className="header-separator w-px h-5 bg-border" />
@@ -3764,15 +3781,17 @@ function GamePageInner({ onFatal }: GamePageClientProps) {
                         <Footprints className="w-3.5 h-3.5 inline mr-1" />
                         {t("npc.move")}
                       </button>
-                      <button
-                        onClick={openProfileSettings}
-                        disabled={!gatewayId}
-                        title={!gatewayId ? t("game.roster.needsGateway") : undefined}
-                        className="w-full text-left px-3 py-2 text-body text-text hover:bg-surface-raised disabled:text-text-dim disabled:cursor-not-allowed"
-                      >
-                        <Pencil className="w-3.5 h-3.5 inline mr-1" />
-                        {t("npc.profileSettings")}
-                      </button>
+                      {HERMES_UI_ENABLED && (
+                        <button
+                          onClick={openProfileSettings}
+                          disabled={!gatewayId}
+                          title={!gatewayId ? t("game.roster.needsGateway") : undefined}
+                          className="w-full text-left px-3 py-2 text-body text-text hover:bg-surface-raised disabled:text-text-dim disabled:cursor-not-allowed"
+                        >
+                          <Pencil className="w-3.5 h-3.5 inline mr-1" />
+                          {t("npc.profileSettings")}
+                        </button>
+                      )}
                     </>
                   )}
                   <button

@@ -1,5 +1,6 @@
 "use client";
 
+import { HOME_PATH } from "@/lib/product-mode";
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
@@ -38,7 +39,7 @@ export default function AuthPageClient({ isComingSoon }: { isComingSoon: boolean
     ])
       .then(([charRes, status]) => {
         if (charRes.ok) {
-          router.replace("/gateways");
+          router.replace(HOME_PATH);
         } else {
           setHasUsers(status.hasUsers);
           if (!status.hasUsers) setMode("register");
@@ -79,7 +80,7 @@ export default function AuthPageClient({ isComingSoon }: { isComingSoon: boolean
         return;
       }
 
-      router.push("/gateways");
+      router.push(HOME_PATH);
     } catch {
       setError(t("common.networkError"));
     } finally {

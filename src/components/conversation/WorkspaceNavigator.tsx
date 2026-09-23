@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { sortRooms, type RoomSummary } from "@/lib/chat-rooms-policy";
 import type { DmThreadEntry } from "@/lib/dm-threads";
 import { useT } from "@/lib/i18n";
+import { HERMES_UI_ENABLED } from "@/lib/product-mode";
 import type { RosterNpc } from "../NpcRoster";
 import ParticipantRow from "./ParticipantRow";
 
@@ -261,13 +262,16 @@ export default function WorkspaceNavigator(props: Props) {
               >
                 {t("npc.move")}
               </button>
-              <button
-                role="menuitem"
-                onClick={() => action("profile")}
-                className="w-full rounded px-3 py-2 text-left text-sm hover:bg-surface-raised"
-              >
-                {t("workspace.action.profile")}
-              </button>
+              {/* crew-office: 프로필 설정은 Hermes 프로필 화면이라 숨긴다(product-mode.ts). */}
+              {HERMES_UI_ENABLED && (
+                <button
+                  role="menuitem"
+                  onClick={() => action("profile")}
+                  className="w-full rounded px-3 py-2 text-left text-sm hover:bg-surface-raised"
+                >
+                  {t("workspace.action.profile")}
+                </button>
+              )}
             </>
           )}
           <button

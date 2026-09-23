@@ -1,5 +1,6 @@
 "use client";
 
+import { HOME_PATH } from "@/lib/product-mode";
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -60,7 +61,7 @@ function AccountPasswordPageInner() {
       setCurrent("");
       setNext("");
       setConfirm("");
-      if (forced) router.push("/gateways");
+      if (forced) router.push(HOME_PATH);
     } finally {
       setSaving(false);
     }

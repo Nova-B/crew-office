@@ -180,3 +180,23 @@ test("CLI 직원을 모두 멈추면 말을 걸어도 턴이 시작되지 않고
   await expect(banner).toBeHidden();
   await expect(page.getByRole("button", { name: "CLI 직원 모두 멈추기" })).toBeVisible();
 });
+
+// 3단계 첫 조각: Hermes 전용 진입점이 화면에 없다. CLI 를 부르지 않는다.
+test("로그인 후 오피스 목록으로 가고, Hermes 전용 메뉴·버튼이 보이지 않는다", async ({ page }) => {
+  const channelId = await bootstrap(page);
+
+  await page.goto("/");
+  await page.waitForURL(/\/channels/);
+  const sidebar = page.getByRole("navigation", { name: "DeskRPG" });
+  await expect(sidebar.getByRole("link", { name: "오피스" })).toBeVisible();
+  await expect(sidebar.getByRole("link", { name: "연결" })).toHaveCount(0);
+  await expect(sidebar.getByRole("link", { name: "직원" })).toHaveCount(0);
+
+  await enterChannel(page, channelId);
+  for (const label of ["칸반", "크론", "결과물", "판단 모음", "연결하기", "새 직원"]) {
+    await expect(page.getByRole("button", { name: label, exact: true })).toHaveCount(0);
+  }
+  await expect(page.getByRole("button", { name: "CLI 직원 고용" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /회의실/ })).toBeVisible();
+  await page.screenshot({ path: "test-results/crew-office-without-hermes.png" });
+});
