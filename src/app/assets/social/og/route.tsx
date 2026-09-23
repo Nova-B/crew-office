@@ -54,8 +54,7 @@ export async function GET(): Promise<Response> {
       >
         <div style={{ display: "flex", alignItems: "center", color: "#234638" }}>
           <img src={markUrl} alt="" width={48} height={48} style={{ borderRadius: 13 }} />
-          <span style={{ fontSize: 32, fontWeight: 800, marginLeft: 12 }}>DeskRPG</span>
-          <span style={{ fontSize: 20, marginLeft: 10, color: "#526b5e" }}>for Hermes</span>
+          <span style={{ fontSize: 32, fontWeight: 800, marginLeft: 12 }}>Crew Office</span>
         </div>
         <div
           style={{
@@ -89,7 +88,7 @@ export async function GET(): Promise<Response> {
           fontSize: 19,
         }}
       >
-        deskrpg.com
+        github.com/Nova-B/crew-office
       </div>
     </div>,
     {

@@ -111,7 +111,6 @@ export default function ThreeGame(props: ThreeGameProps) {
     try {
       view = new OfficeRenderer(host.current, labels.current);
       renderer.current = view;
-      view.onKanbanOpen = () => EventBus.emit("kanban:open");
     } catch (err) {
       console.error("Three.js initialization failed", err);
       // WebGL capability failure is external state discovered only during allocation.

@@ -1,6 +1,7 @@
 "use client";
 
 import { HOME_PATH } from "@/lib/product-mode";
+import { REPO_URL } from "@/lib/app-meta";
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
@@ -110,7 +111,7 @@ export default function AuthPageClient({ isComingSoon }: { isComingSoon: boolean
       <header className="commute-header">
         <Link href="/" className="commute-brand">
           <DeskRpgMark size={30} />
-          DeskRPG <span>AI Coworking Space</span>
+          Crew Office <span>AI Coworking Space</span>
         </Link>
       </header>
 
@@ -128,7 +129,7 @@ export default function AuthPageClient({ isComingSoon }: { isComingSoon: boolean
               <Sun size={14} aria-hidden="true" /> {t("auth.morningGreeting")}
             </p>
             <h1>
-              DeskRPG <span>AI Coworking Space</span>
+              Crew Office <span>AI Coworking Space</span>
             </h1>
             <p className="commute-subtitle">{t("auth.heroSubtitle")}</p>
           </div>
@@ -142,7 +143,7 @@ export default function AuthPageClient({ isComingSoon }: { isComingSoon: boolean
                   {t("auth.comingSoon")}
                 </div>
                 <a
-                  href="https://github.com/dandacompany/deskrpg"
+                  href={REPO_URL}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="commute-github"

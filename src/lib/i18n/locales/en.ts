@@ -97,16 +97,15 @@ const en: Record<string, string> = {
   "common.copied": "Copied",
 
   // Auth
-  "auth.title": "DeskRPG — AI Coworking Space",
+  "auth.title": "Crew Office — AI Coworking Space",
   "auth.morningGreeting": "A NEW DAY AT YOUR LITTLE OFFICE",
   "auth.morningCaption": "A little world. A brighter workday.",
   "auth.subtitle": "Virtual Office with AI Employees",
-  "metadata.title": "DeskRPG — The Office Where AI Coworkers Work",
+  "metadata.title": "Crew Office — The Office Where AI Coworkers Work",
   "metadata.description":
-    "Build your own 3D virtual office and work alongside Hermes AI coworkers. A shared workspace to connect with your team and achieve your goals.",
-  "metadata.openGraphDescription": "DeskRPG for Hermes — Your 3D virtual office with AI coworkers",
-  "metadata.keywords":
-    "DeskRPG, Hermes, virtual office, AI coworkers, 3D, RPG, multiplayer, workspace",
+    "A local 3D virtual office where Claude Code and Codex CLI sessions on your PC work as your coworkers.",
+  "metadata.openGraphDescription": "Crew Office — a local 3D office with CLI AI coworkers",
+  "metadata.keywords": "Crew Office, Claude Code, Codex, virtual office, AI coworkers, 3D",
   "auth.login": "Login",
   "auth.register": "Register",
   "auth.loginId": "Login ID",
@@ -120,7 +119,7 @@ const en: Record<string, string> = {
   "auth.checkingAuth": "Checking authentication...",
   "auth.logout": "Logout",
   "auth.comingSoon": "Coming Soon",
-  "auth.comingSoonDesc": "DeskRPG is preparing for SaaS launch. Stay tuned!",
+  "auth.comingSoonDesc": "Crew Office runs locally on your own PC.",
   "auth.comingSoonGithub": "View on GitHub",
 
   // Channels
@@ -1391,8 +1390,6 @@ const en: Record<string, string> = {
   "game.markAllRead": "Mark all read",
   "game.noNotifications": "No notifications",
   "game.reportBug": "Report a bug",
-  "growth.starLabel": "GitHub Star",
-  "growth.starTitle": "Support DeskRPG with a star on GitHub",
   "growth.newVersion": "New version {version}",
   "growth.updateTitle": "A new version is available",
   "growth.updateSummary": "You are on v{current}; the latest is v{latest}.",
@@ -1422,7 +1419,7 @@ const en: Record<string, string> = {
   "growth.bugPrivateNote":
     "Private reports go to the DeskRPG team server. No GitHub account needed.",
   "growth.bugSent": "Thanks for the report. We will look into it.",
-  "game.aboutDeskRpg": "About DeskRPG",
+  "game.aboutDeskRpg": "About Crew Office",
   "game.removedFromChannel": "You have been removed from this channel.",
   "game.channelDeleted": "This channel has been deleted.",
   "game.sessionKicked": "Your session ended. Please rejoin the channel.",
@@ -1532,8 +1529,8 @@ const en: Record<string, string> = {
   "chat.npcNoResponse": "{name} couldn't respond.",
   "chat.attachFile": "Attach file",
   "chat.removeFile": "Remove file",
-  "about.title": "About DeskRPG",
-  "about.version": "DeskRPG Version",
+  "about.title": "About Crew Office",
+  "about.version": "Crew Office Version",
   "about.sourceCode": "Source Code",
   "about.license": "License",
   "about.thirdPartyLicenses": "Third-Party Licenses",
@@ -1741,7 +1738,7 @@ const en: Record<string, string> = {
   "common.backToCharacters": "Back to Characters",
   "common.renameOnDoubleClick": "Double-click to rename",
   "auth.heroTagline": "VIRTUAL OFFICE ADVENTURE",
-  "auth.heroSubtitle": "Your own 3D office, with Hermes AI coworkers.",
+  "auth.heroSubtitle": "Your own 3D office, with CLI AI coworkers.",
   "auth.getStarted": "Get Started",
   "auth.setupDescription": "Create an admin account to get started",
   "auth.setupAdminNotice":

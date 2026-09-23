@@ -74,8 +74,8 @@ public/assets/built-in/downloads/
 tmp/*
 !tmp/.gitkeep
 tests/
+# 예전 배포 레시피 폴더(삭제됨). 로컬에 남은 파일이 드러나지 않게 계속 무시한다.
 deploy/
-deploy/pre-deploy-checklist.md
 
 # Playwright
 /test-results/
@@ -89,13 +89,6 @@ deploy/pre-deploy-checklist.md
 /art/
 __pycache__/
 *.py[cod]
-
-# Public deployment recipes (served via raw URL to Hostinger Docker Manager)
-!/deploy/
-/deploy/*
-!/deploy/hostinger/
-!/deploy/office/
-deploy/hostinger/catalog-submission.md
 
 # --- crew-office ---
 # phase0 실험 부산물: 가짜 HOME(인증 파일 생길 수 있음), CLI 작업 폴더

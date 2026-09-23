@@ -1,11 +1,14 @@
 import { BUG_REPORT_BASE_URL } from "@/lib/app-meta";
 
-export const DEFAULT_FEEDBACK_URL = "https://feedback.deskrpg.com";
 const INSTALL_ID_KEY = "deskrpg.feedback.installId";
 
-/** `DESKRPG_FEEDBACK_URL` 해석. 설정이 없으면 기본 서버, 빈 값이면 설문·비공개 전송을 모두 끈다. */
+/**
+ * `DESKRPG_FEEDBACK_URL` 해석. 빈 값이거나 **설정이 없으면** 설문·비공개 전송을 모두 끈다.
+ * crew-office: DeskRPG 는 설정이 없으면 업스트림 수집 서버(feedback.deskrpg.com)로 보냈다. 이 수정본의
+ * 사용 기록이 사용자 모르게 남의 서버로 가지 않도록, 직접 주소를 줄 때만 보낸다.
+ */
 export function resolveFeedbackUrl(raw: string | undefined): string | null {
-  if (raw === undefined) return DEFAULT_FEEDBACK_URL;
+  if (raw === undefined) return null;
   const trimmed = raw.trim().replace(/\/+$/, "");
   return trimmed === "" ? null : trimmed;
 }

@@ -9,27 +9,7 @@ const files = (directory: string): string[] =>
     const file = `${directory}/${entry.name}`;
     return entry.isDirectory() ? files(file) : [file];
   });
-const manifest = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8")) as {
-  files: string[];
-};
-const docker = [
-  ...readFileSync(path.join(root, "Dockerfile"), "utf8").matchAll(
-    /COPY --from=builder (?:--\S+ )?\/app\/(\S+)/g,
-  ),
-].map((match) => match[1]);
-const covered = (entries: string[], file: string) =>
-  entries.some((entry) => file === entry || file.startsWith(`${entry}/`));
-test("Docker and npm carry the complete shared Three runtime directory", () => {
-  const modules = files("src/game/three").filter(
-    (file) => /\.tsx?$/.test(file) && !/\.test\.tsx?$/.test(file),
-  );
-  assert.ok(modules.some((file) => file.endsWith("creative-studio-renderer.ts")));
-  for (const file of modules) {
-    assert.ok(covered(docker, file), `Docker omits ${file}`);
-    assert.ok(covered(manifest.files, file), `npm omits ${file}`);
-  }
-});
-test("all catalog GLBs, studio surfaces, thumbnail and build reports ship through public", () => {
+test("all catalog GLBs, studio surfaces, thumbnail and build reports exist", () => {
   const runtime = [
     ...Object.values(SCENE_ASSETS).map((asset) => `public${asset.url}`),
     ...[
@@ -44,9 +24,6 @@ test("all catalog GLBs, studio surfaces, thumbnail and build reports ship throug
   ];
   for (const file of new Set(runtime)) {
     assert.ok(existsSync(path.join(root, file)), file);
-    assert.ok(covered(manifest.files, file), `npm omits ${file}`);
-    // The fixture is traced into the Next API; public URLs need explicit copies.
-    if (file.startsWith("public/")) assert.ok(covered(docker, file), `Docker omits ${file}`);
   }
   assert.ok(runtime.includes("public/assets/environments/creative-studio/agency-v5.webp"));
   assert.notDeepEqual(

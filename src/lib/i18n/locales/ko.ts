@@ -98,15 +98,15 @@ const ko: Record<string, string> = {
   "common.copied": "복사됨",
 
   // Auth
-  "auth.title": "DeskRPG — AI Coworking Space",
+  "auth.title": "Crew Office — AI Coworking Space",
   "auth.morningGreeting": "새로운 하루, 함께하는 출근길",
   "auth.morningCaption": "AI 동료가 기다리는 우리의 작은 오피스",
   "auth.subtitle": "AI 직원과 함께하는 가상 오피스",
-  "metadata.title": "DeskRPG — AI 직원이 일하는 오피스",
+  "metadata.title": "Crew Office — AI 직원이 일하는 오피스",
   "metadata.description":
-    "나만의 3D 가상 오피스를 만들고 Hermes AI 동료와 함께 일하세요. 팀과 대화하고 비즈니스 목표를 함께 달성하는 워크스페이스.",
-  "metadata.openGraphDescription": "DeskRPG for Hermes — AI 동료와 함께하는 3D 가상 오피스",
-  "metadata.keywords": "DeskRPG, Hermes, 가상 오피스, AI 동료, 3D, RPG, 멀티플레이어, 워크스페이스",
+    "이 PC 의 Claude Code·Codex CLI 세션이 직원으로 일하는 로컬 3D 가상 오피스.",
+  "metadata.openGraphDescription": "Crew Office — CLI AI 직원과 함께하는 로컬 3D 오피스",
+  "metadata.keywords": "Crew Office, Claude Code, Codex, 가상 오피스, AI 동료, 3D",
   "auth.login": "로그인",
   "auth.register": "회원가입",
   "auth.loginId": "로그인 ID",
@@ -120,7 +120,7 @@ const ko: Record<string, string> = {
   "auth.checkingAuth": "인증 확인 중...",
   "auth.logout": "로그아웃",
   "auth.comingSoon": "Coming Soon",
-  "auth.comingSoonDesc": "DeskRPG가 SaaS 출시를 준비하고 있습니다. 곧 만나요!",
+  "auth.comingSoonDesc": "Crew Office 는 내 PC 에서 로컬로 돕니다.",
   "auth.comingSoonGithub": "GitHub에서 보기",
 
   // Channels
@@ -1389,8 +1389,6 @@ const ko: Record<string, string> = {
   "game.markAllRead": "모두 읽음",
   "game.noNotifications": "알림 없음",
   "game.reportBug": "버그 신고",
-  "growth.starLabel": "GitHub Star",
-  "growth.starTitle": "GitHub에서 DeskRPG에 Star로 응원하기",
   "growth.newVersion": "새 버전 {version}",
   "growth.updateTitle": "새 버전이 나왔습니다",
   "growth.updateSummary": "지금 버전은 v{current}, 최신 버전은 v{latest}입니다.",
@@ -1421,7 +1419,7 @@ const ko: Record<string, string> = {
   "growth.bugPrivateNote":
     "비공개 전송은 DeskRPG 개발팀 서버로 갑니다. GitHub 계정이 필요 없습니다.",
   "growth.bugSent": "보내 주셔서 감사합니다. 확인 후 반영하겠습니다.",
-  "game.aboutDeskRpg": "DeskRPG 정보",
+  "game.aboutDeskRpg": "Crew Office 정보",
   "game.removedFromChannel": "이 오피스에서 퇴장되었습니다.",
   "game.channelDeleted": "이 오피스이 삭제되었습니다.",
   "game.sessionKicked": "세션이 종료되었습니다. 오피스에 다시 참가해주세요.",
@@ -1531,8 +1529,8 @@ const ko: Record<string, string> = {
   "chat.npcNoResponse": "{name}님이 응답하지 못했습니다.",
   "chat.attachFile": "파일 첨부",
   "chat.removeFile": "파일 제거",
-  "about.title": "About DeskRPG",
-  "about.version": "DeskRPG Version",
+  "about.title": "About Crew Office",
+  "about.version": "Crew Office Version",
   "about.sourceCode": "Source Code",
   "about.license": "License",
   "about.thirdPartyLicenses": "Third-Party Licenses",
@@ -1738,7 +1736,7 @@ const ko: Record<string, string> = {
   "common.backToCharacters": "캐릭터 목록으로 돌아가기",
   "common.renameOnDoubleClick": "더블클릭하여 이름 변경",
   "auth.heroTagline": "가상 오피스 어드벤처",
-  "auth.heroSubtitle": "Hermes AI 동료와 함께 일하는, 나만의 3D 오피스",
+  "auth.heroSubtitle": "CLI AI 동료와 함께 일하는, 나만의 3D 오피스",
   "auth.getStarted": "시작하기",
   "auth.setupDescription": "관리자 계정을 만들어 시작하세요",
   "auth.setupAdminNotice":

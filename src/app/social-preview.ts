@@ -3,9 +3,9 @@ import type { MetadataRoute } from "next";
 
 const PUBLIC_URL = "https://deskrpg.com/";
 const SHARE_IMAGE_URL = "https://deskrpg.com/assets/social/og";
-const SHARE_TITLE = "DeskRPG for Hermes — AI 직원이 일하는 사무실";
+const SHARE_TITLE = "Crew Office — AI 직원이 일하는 사무실";
 const SHARE_DESCRIPTION =
-  "Hermes 에이전트와 함께 대화하고, 회의하고, 칸반 작업을 진행하는 셀프호스팅 3D 가상 오피스.";
+  "이 PC 의 Claude Code·Codex CLI 직원과 함께 대화하고 회의하는 로컬 3D 가상 오피스.";
 
 export function isPublicLandingEnabled(env: Record<string, string | undefined>): boolean {
   return env.COMING_SOON === "true" || env.NEXT_PUBLIC_COMING_SOON === "true";
@@ -21,7 +21,7 @@ export function createPublicShareMetadata(): Metadata {
       title: SHARE_TITLE,
       description: SHARE_DESCRIPTION,
       url: PUBLIC_URL,
-      siteName: "DeskRPG for Hermes",
+      siteName: "Crew Office",
       locale: "ko_KR",
       type: "website",
       images: [
@@ -29,7 +29,7 @@ export function createPublicShareMetadata(): Metadata {
           url: SHARE_IMAGE_URL,
           width: 1200,
           height: 630,
-          alt: "DeskRPG for Hermes 3D office with AI coworkers",
+          alt: "Crew Office 3D office with AI coworkers",
         },
       ],
     },

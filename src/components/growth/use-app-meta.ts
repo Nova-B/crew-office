@@ -18,13 +18,11 @@ export function useAppMeta() {
   const [meta, setMeta] = useState<AppMeta>({
     version: APP_VERSION,
     latestVersion: null,
-    stars: null,
     feedbackUrl: null,
   });
   const [state, setState] = useState<GrowthState>({
     ok: false,
     seenVersion: null,
-    starClicked: false,
   });
 
   useEffect(() => {
@@ -54,18 +52,11 @@ export function useAppMeta() {
     setState((s) => ({ ...s, seenVersion: meta.latestVersion }));
   }, [meta.latestVersion]);
 
-  const markStarClicked = useCallback(() => {
-    writeGrowthFlag(browserStorage(), "starClicked", "1");
-    setState((s) => ({ ...s, starClicked: true }));
-  }, []);
-
   return {
     ...meta,
     updateAvailable: isNewer(meta.latestVersion, meta.version),
     hasUpdate,
-    starClicked: state.starClicked,
     markUpdateSeen,
-    markStarClicked,
   };
 }
 

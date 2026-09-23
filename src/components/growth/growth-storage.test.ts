@@ -17,12 +17,11 @@ function memoryStorage(): Storage {
   };
 }
 
-test("저장한 확인 버전과 Star 누름을 다시 읽는다", () => {
+test("저장한 확인 버전을 다시 읽는다", () => {
   const s = memoryStorage();
-  assert.deepEqual(readGrowthState(s), { ok: true, seenVersion: null, starClicked: false });
+  assert.deepEqual(readGrowthState(s), { ok: true, seenVersion: null });
   writeGrowthFlag(s, "seenVersion", "2026.922.0");
-  writeGrowthFlag(s, "starClicked", "1");
-  assert.deepEqual(readGrowthState(s), { ok: true, seenVersion: "2026.922.0", starClicked: true });
+  assert.deepEqual(readGrowthState(s), { ok: true, seenVersion: "2026.922.0" });
 });
 
 test("저장소를 읽을 수 없으면 ok 가 false 다", () => {
@@ -33,7 +32,7 @@ test("저장소를 읽을 수 없으면 ok 가 false 다", () => {
   } as unknown as Storage;
   assert.equal(readGrowthState(broken).ok, false);
   assert.equal(readGrowthState(null).ok, false);
-  assert.doesNotThrow(() => writeGrowthFlag(broken, "starClicked", "1"));
+  assert.doesNotThrow(() => writeGrowthFlag(broken, "seenVersion", "1"));
 });
 
 test("설문 상태를 저장하고 다시 읽으며, 망가진 값은 초기값으로 되돌린다", async () => {

@@ -99,16 +99,15 @@ const ja: Record<string, string> = {
   "common.copied": "コピーしました",
 
   // Auth
-  "auth.title": "DeskRPG — AI Coworking Space",
+  "auth.title": "Crew Office — AI Coworking Space",
   "auth.morningGreeting": "新しい一日、一緒にオフィスへ",
   "auth.morningCaption": "AIの仲間が待つ、私たちの小さなオフィス",
   "auth.subtitle": "AI社員と共に働くバーチャルオフィス",
-  "metadata.title": "DeskRPG — AI社員が働くオフィス",
+  "metadata.title": "Crew Office — AI社員が働くオフィス",
   "metadata.description":
-    "自分だけの3D仮想オフィスを作り、Hermes AIの仲間と働きましょう。チームとつながり、目標を一緒に達成するワークスペース。",
-  "metadata.openGraphDescription": "DeskRPG for Hermes — AIの仲間と働く3D仮想オフィス",
-  "metadata.keywords":
-    "DeskRPG, Hermes, バーチャルオフィス, AIの仲間, 3D, RPG, マルチプレイ, ワークスペース",
+    "このPCの Claude Code・Codex CLI セッションが社員として働く、ローカルの3D仮想オフィス。",
+  "metadata.openGraphDescription": "Crew Office — CLI AI社員と働くローカル3Dオフィス",
+  "metadata.keywords": "Crew Office, Claude Code, Codex, バーチャルオフィス, AIの仲間, 3D",
   "auth.login": "ログイン",
   "auth.register": "新規登録",
   "auth.loginId": "ログインID",
@@ -122,7 +121,7 @@ const ja: Record<string, string> = {
   "auth.checkingAuth": "認証確認中...",
   "auth.logout": "ログアウト",
   "auth.comingSoon": "Coming Soon",
-  "auth.comingSoonDesc": "DeskRPGはSaaSローンチの準備中です。お楽しみに！",
+  "auth.comingSoonDesc": "Crew Office は自分のPCでローカルに動きます。",
   "auth.comingSoonGithub": "GitHubで見る",
 
   // Channels
@@ -1393,8 +1392,6 @@ const ja: Record<string, string> = {
   "game.markAllRead": "すべて既読",
   "game.noNotifications": "通知なし",
   "game.reportBug": "バグを報告",
-  "growth.starLabel": "GitHub Star",
-  "growth.starTitle": "GitHub で DeskRPG に Star を付けて応援する",
   "growth.newVersion": "新しいバージョン {version}",
   "growth.updateTitle": "新しいバージョンがあります",
   "growth.updateSummary": "現在は v{current}、最新は v{latest} です。",
@@ -1425,7 +1422,7 @@ const ja: Record<string, string> = {
   "growth.bugPrivateNote":
     "非公開の報告は DeskRPG 開発チームのサーバーに送られます。GitHub アカウントは不要です。",
   "growth.bugSent": "ご報告ありがとうございます。確認して対応します。",
-  "game.aboutDeskRpg": "DeskRPG について",
+  "game.aboutDeskRpg": "Crew Office について",
   "game.removedFromChannel": "このチャンネルから退出させられました。",
   "game.channelDeleted": "このチャンネルは削除されました。",
   "game.sessionKicked": "セッションが終了しました。チャンネルに再参加してください。",
@@ -1541,8 +1538,8 @@ const ja: Record<string, string> = {
   "chat.npcNoResponse": "{name}さんは応答できませんでした。",
   "chat.attachFile": "ファイルを添付",
   "chat.removeFile": "ファイルを削除",
-  "about.title": "About DeskRPG",
-  "about.version": "DeskRPG Version",
+  "about.title": "About Crew Office",
+  "about.version": "Crew Office Version",
   "about.sourceCode": "Source Code",
   "about.license": "License",
   "about.thirdPartyLicenses": "Third-Party Licenses",
@@ -1749,7 +1746,7 @@ const ja: Record<string, string> = {
   "common.backToCharacters": "キャラクター一覧に戻る",
   "common.renameOnDoubleClick": "ダブルクリックで名前を変更",
   "auth.heroTagline": "バーチャルオフィスアドベンチャー",
-  "auth.heroSubtitle": "Hermes AIの仲間と働く、自分だけの3Dオフィス",
+  "auth.heroSubtitle": "CLI AIの仲間と働く、自分だけの3Dオフィス",
   "auth.getStarted": "はじめる",
   "auth.setupDescription": "管理者アカウントを作成して始めましょう",
   "auth.setupAdminNotice":

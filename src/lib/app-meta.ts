@@ -2,7 +2,7 @@ import { version } from "../../package.json";
 
 /** 앱 버전과 레포 주소의 한 곳. 브라우저와 서버가 함께 읽는다. */
 export const APP_VERSION: string = version;
-export const REPO_URL = "https://github.com/dandacompany/deskrpg";
+export const REPO_URL = "https://github.com/Nova-B/crew-office";
 export const BUG_REPORT_BASE_URL = `${REPO_URL}/issues/new`;
 export const LICENSE_URL = `${REPO_URL}/blob/main/LICENSE.md`;
 
@@ -26,10 +26,4 @@ export function compareCalVer(a: string, b: string): -1 | 0 | 1 {
 
 export function isNewer(latest: string | null | undefined, current: string): boolean {
   return typeof latest === "string" && compareCalVer(latest, current) === 1;
-}
-
-export function formatStars(count: number): string {
-  if (count < 1000) return String(count);
-  const k = count / 1000;
-  return `${k >= 10 ? Math.round(k) : Math.round(k * 10) / 10}k`;
 }

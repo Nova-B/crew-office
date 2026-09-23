@@ -14,9 +14,8 @@ This folder is split by purpose.
 
 Current public entry points:
 
-- `node scripts/setup/setup-lite.js`
-- `bash scripts/tc` (run `npm run tc pre-deploy` for pre-deploy automated checks)
-- `bash scripts/tc` (run `npm run tc test-deploy -- --build` for a pre-release Docker test deployment)
+- `node scripts/setup/setup-lite.js` (`npm run setup:lite`)
+- `bash scripts/check-public-tree.sh`, `bash scripts/check-commit-meta.sh`
 
 Current local-only examples:
 

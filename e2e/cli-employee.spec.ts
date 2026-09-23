@@ -41,8 +41,7 @@ async function bootstrap(page: Page): Promise<string> {
   return created.id;
 }
 
-// helpers.enterFirstChannel 은 예전 "캐릭터 목록" 화면을 가정한다(지금은 편집기다). 채널 id 를
-// 알고 있으니 게임 화면으로 바로 들어간다.
+// 채널 id 를 알고 있으니 게임 화면으로 바로 들어간다.
 async function enterChannel(page: Page, channelId: string) {
   await page.goto(`/game?channelId=${channelId}`);
   await page.locator("canvas").first().waitFor({ state: "visible" });

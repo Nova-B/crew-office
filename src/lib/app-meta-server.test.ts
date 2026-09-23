@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { createAppMetaCache } from "./app-meta-server";
 
-const REPO = "https://api.github.com/repos/dandacompany/deskrpg";
+const REPO = "https://api.github.com/repos/Nova-B/crew-office";
 
 function fakeFetch(responses: Record<string, unknown>) {
   const calls: string[] = [];
@@ -16,43 +16,45 @@ function fakeFetch(responses: Record<string, unknown>) {
   return { fetchJson, calls };
 }
 
-test("Star 수와 최신 릴리스 태그를 돌려주고 TTL 안에서는 다시 묻지 않는다", async () => {
+test("최신 릴리스 태그를 돌려주고 TTL 안에서는 다시 묻지 않는다", async () => {
   let now = 0;
   const { fetchJson, calls } = fakeFetch({
-    [REPO]: { stargazers_count: 1234 },
     [`${REPO}/releases/latest`]: { tag_name: "2026.922.0" },
   });
   const cache = createAppMetaCache({ fetchJson, now: () => now, ttlMs: 1000, failureTtlMs: 100 });
   const first = await cache.get();
-  assert.equal(first.stars, 1234);
   assert.equal(first.latestVersion, "2026.922.0");
   await cache.get();
-  assert.equal(calls.length, 2);
+  assert.equal(calls.length, 1);
   now = 1001;
   await cache.get();
-  assert.equal(calls.length, 4);
+  assert.equal(calls.length, 2);
 });
 
-test("한쪽 호출이 실패해도 다른 쪽 값은 남고, 실패는 짧게 캐시한다", async () => {
+test("호출이 실패하면 null 로 두고, 실패는 짧게 캐시한다", async () => {
   let now = 0;
   const { fetchJson, calls } = fakeFetch({
-    [REPO]: new Error("rate limited"),
-    [`${REPO}/releases/latest`]: { tag_name: "v2026.922.0" },
+    [`${REPO}/releases/latest`]: new Error("rate limited"),
   });
   const cache = createAppMetaCache({ fetchJson, now: () => now, ttlMs: 1000, failureTtlMs: 100 });
   const meta = await cache.get();
-  assert.equal(meta.stars, null);
-  assert.equal(meta.latestVersion, "2026.922.0");
+  assert.equal(meta.latestVersion, null);
+  now = 50;
+  await cache.get();
+  assert.equal(calls.length, 1);
   now = 101;
   await cache.get();
-  assert.equal(calls.length, 4);
+  assert.equal(calls.length, 2);
 });
 
-test("형식이 맞지 않는 응답은 null 로 본다", async () => {
-  const { fetchJson } = fakeFetch({
-    [REPO]: { stargazers_count: "many" },
-    [`${REPO}/releases/latest`]: {},
-  });
+test("v 접두사는 떼고, 형식이 맞지 않는 응답은 null 로 본다", async () => {
+  const withPrefix = fakeFetch({ [`${REPO}/releases/latest`]: { tag_name: "v2026.922.0" } });
+  assert.equal(
+    (await createAppMetaCache({ fetchJson: withPrefix.fetchJson, now: () => 0 }).get())
+      .latestVersion,
+    "2026.922.0",
+  );
+  const { fetchJson } = fakeFetch({ [`${REPO}/releases/latest`]: {} });
   const meta = await createAppMetaCache({ fetchJson, now: () => 0 }).get();
-  assert.deepEqual([meta.stars, meta.latestVersion], [null, null]);
+  assert.equal(meta.latestVersion, null);
 });

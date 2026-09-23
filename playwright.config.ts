@@ -2,9 +2,9 @@ import { defineConfig } from "@playwright/test";
 
 // DeskRPG E2E — 로컬/수동 실행 전용.
 //
-// CI 기본 파이프라인에 넣지 않는다. 이 스위트는 살아 있는 Hermes 게이트웨이(로컬 8642)와
-// 시드된 개발 DB 를 요구하고, 그 둘은 CI 에 없다. `npm run test` (node:test 616개)는
-// 그대로 순수 단위 테스트로 남고, 이쪽은 `npm run test:e2e` 로 사람이 부를 때만 돈다.
+// CI 기본 파이프라인에 넣지 않는다. 이 스위트는 이 PC 에 설치·로그인된 Claude Code/Codex CLI 를
+// 실제로 부르고(구독 사용량이 든다), 그 CLI 는 CI 에 없다. `npm run test` 는 순수 단위 테스트로
+// 남고, 이쪽은 `npm run test:e2e` 로 사람이 부를 때만 돈다.
 //
 // 브라우저는 내려받지 않고 이미 설치된 Chrome 을 쓴다(channel: "chrome"). 번들 Chromium
 // 을 받으면 수백 MB 가 더 들고, 우리가 검증하려는 것은 "이 기계의 Chrome 에서 되는가"다.

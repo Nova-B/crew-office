@@ -34,8 +34,8 @@ test("설치 ID 는 한 번 만들고 계속 같은 값을 쓴다", () => {
   assert.equal(getInstallId(null), null);
 });
 
-test("수집 서버 주소: 없으면 기본값, 빈 값이면 끔", () => {
-  assert.equal(resolveFeedbackUrl(undefined), "https://feedback.deskrpg.com");
+test("수집 서버 주소: 없거나 빈 값이면 끔 — 업스트림 서버로 보내지 않는다", () => {
+  assert.equal(resolveFeedbackUrl(undefined), null);
   assert.equal(resolveFeedbackUrl(""), null);
   assert.equal(resolveFeedbackUrl("  "), null);
   assert.equal(resolveFeedbackUrl("https://example.test/"), "https://example.test");

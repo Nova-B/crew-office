@@ -143,7 +143,7 @@ export function createCommuteCity(
       box(0.06, 1.28, 0.1, "#e9dfc8", x + dx, 0.7, z + d / 2 + 0.1);
     box(w + 0.3, 0.15, 1.05, headquarters ? ink : "#c3ad8a", x, 1.6, z + d / 2 + 0.35);
     if (headquarters) {
-      sign("DeskRPG for Hermes", x, 1.28, z + d / 2 + 0.89, w - 0.3);
+      sign("Crew Office", x, 1.28, z + d / 2 + 0.89, w - 0.3);
       box(1.8, 0.45, 1.15, "#97afa2", x + 0.5, height + 0.5, z);
       for (let i = 0; i < 4; i++)
         box(1.5, 0.03, 0.07, ink, x + 0.5, height + 0.74, z - 0.4 + i * 0.25);

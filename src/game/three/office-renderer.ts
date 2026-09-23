@@ -680,7 +680,7 @@ export class OfficeRenderer {
           this.selectedActorId = undefined;
         }
         this.furnitureHighlight.highlight(this.board);
-        this.renderer.domElement.title = "Kanban · 클릭하여 이동";
+        this.renderer.domElement.title = "보드 · 클릭하여 이동";
         this.renderer.domElement.style.cursor = "pointer";
         this.cursor.visible = false;
         if (kind === "down" && e.button === 0) {

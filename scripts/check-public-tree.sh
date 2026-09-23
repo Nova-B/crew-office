@@ -7,7 +7,7 @@ while IFS= read -r tracked_path; do
   case "$tracked_path" in
     docs/*|CLAUDE.md|AGENTS.md|GEMINI.md|*/CLAUDE.md|*/AGENTS.md|*/GEMINI.md|\
     .claude/*|.codex/*|.agents/*|.gemini/*|.superpowers/*|.dryforge/*|\
-    deploy/pre-deploy-checklist.md|deploy/hostinger/catalog-submission.md|e2e/README.md)
+    e2e/README.md)
       echo "공개 트리에 개발 메타 파일이 남았습니다: $tracked_path" >&2
       violations=$((violations + 1))
       ;;

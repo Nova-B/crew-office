@@ -1,15 +1,15 @@
 {
-  "name": "deskrpg",
+  "name": "crew-office",
   "version": "2026.923.1",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/dandacompany/deskrpg.git"
+    "url": "git+https://github.com/Nova-B/crew-office.git"
   },
-  "homepage": "https://deskrpg.com",
+  "homepage": "https://github.com/Nova-B/crew-office#readme",
   "bugs": {
-    "url": "https://github.com/dandacompany/deskrpg/issues"
+    "url": "https://github.com/Nova-B/crew-office/issues"
   },
-  "private": false,
+  "private": true,
   "bin": {
     "deskrpg": "bin/deskrpg.js"
   },
@@ -49,15 +49,11 @@
     "dev": "npx tsx dev-server.ts",
     "dev:debug": "DEBUG_CHAT=1 npx tsx dev-server.ts",
     "dev:next": "next dev",
-    "setup": "docker compose up -d deskrpg-db && dotenv -e .env.local -- drizzle-kit migrate && echo '✓ Ready — run: npm run dev'",
     "setup:lite": "node scripts/setup/setup-lite.js",
     "build": "next build",
-    "pack:npm": "mkdir -p .artifacts/npm .artifacts/.npm-cache && npm_config_cache=.artifacts/.npm-cache npm pack --pack-destination .artifacts/npm",
     "start": "node server.js",
     "test": "tsx --test \"src/**/*.test.ts\" \"src/**/*.test.tsx\" \"src/**/*.test.js\" \"src/**/[[]*[]]/**/*.test.ts\" \"src/**/[[]*[]]/**/*.test.tsx\" \"src/**/[[]*[]]/**/*.test.js\" \"tools/**/*.test.ts\" \"scripts/**/*.test.ts\"",
     "runtime:doctor": "node bin/deskrpg.js doctor",
-    "tc": "bash scripts/tc",
-    "prepack": "npm run build",
     "lint": "eslint",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -67,9 +63,7 @@
     "db:migrate": "dotenv -e .env.local -- drizzle-kit migrate",
     "db:studio": "dotenv -e .env.local -- drizzle-kit studio",
     "db:setup": "dotenv -e .env.local -- drizzle-kit migrate",
-    "deploy:test": "bash deploy/test-deploy.sh",
-    "test:e2e": "playwright test",
-    "test:e2e:fixtures": "playwright test --config playwright.fixtures.config.ts"
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@codemirror/language": "^6.12.4",

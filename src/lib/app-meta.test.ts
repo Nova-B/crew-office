@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { APP_VERSION, compareCalVer, formatStars, isNewer } from "./app-meta";
+import { APP_VERSION, compareCalVer, isNewer } from "./app-meta";
 import pkg from "../../package.json";
 
 test("앱 버전은 package.json 에서 읽는다", () => {
@@ -19,10 +19,4 @@ test("최신 버전이 없거나 읽을 수 없으면 새 버전으로 보지 �
   assert.equal(isNewer("2026.922.0", "2026.921.3"), true);
   assert.equal(isNewer(null, "2026.921.3"), false);
   assert.equal(isNewer("garbage", "2026.921.3"), false);
-});
-
-test("Star 수는 천 단위를 k 로 줄인다", () => {
-  assert.equal(formatStars(999), "999");
-  assert.equal(formatStars(1234), "1.2k");
-  assert.equal(formatStars(12000), "12k");
 });

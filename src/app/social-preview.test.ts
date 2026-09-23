@@ -64,10 +64,10 @@ test("공유 메타데이터는 대표 URL과 큰 이미지를 절대 주소로 
     url: "https://deskrpg.com/assets/social/og",
     width: 1200,
     height: 630,
-    alt: "DeskRPG for Hermes 3D office with AI coworkers",
+    alt: "Crew Office 3D office with AI coworkers",
   });
   assert.ok(Array.isArray(metadata.twitter?.images));
   assert.equal(metadata.twitter.images[0], "https://deskrpg.com/assets/social/og");
-  assert.match(String(metadata.title), /DeskRPG for Hermes/);
-  assert.match(String(metadata.description), /Hermes/);
+  assert.match(String(metadata.title), /Crew Office/);
+  assert.match(String(metadata.description), /Claude Code/);
 });
