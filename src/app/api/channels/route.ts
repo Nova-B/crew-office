@@ -1,4 +1,3 @@
-import { isManagedSshUrl } from "@/lib/hermes/setup/transport-id";
 import { db, jsonForDb } from "@/db";
 import { normalizeMeetingMap } from "@/game/meeting-map-normalization";
 import {
@@ -20,12 +19,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { eq, and, inArray } from "drizzle-orm";
 import { hashPassword } from "@/lib/password";
 import { getUserId } from "@/lib/internal-rpc";
-import {
-  bindGatewayToChannel,
-  getAccessibleGatewayResource,
-  upsertOwnedGatewayResource,
-} from "@/lib/gateway-resources";
-import { hireGatewayProfilesIntoChannel } from "@/lib/npc-roster";
 import { ensureOfficeRoom } from "@/lib/chat-rooms";
 import { effectiveMapSpawn } from "@/lib/effective-map-spawn";
 import { parseDbJson } from "@/lib/db-json";
@@ -277,16 +270,9 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { name, description, isPublic, environmentId, password, gatewayConfig, groupId } = body;
-    if (
-      !(typeof gatewayConfig?.gatewayId === "string" && gatewayConfig.gatewayId) &&
-      isManagedSshUrl(gatewayConfig?.url)
-    ) {
-      return NextResponse.json(
-        { errorCode: "setup_invalid_request", error: "setup_invalid_request" },
-        { status: 400 },
-      );
-    }
+    // crew-office: 채널 생성 시 AI 게이트웨이(gatewayConfig)를 묶던 경로는 Hermes 와 함께 걷어냈다.
+    // 옛 클라이언트가 보내도 무시한다 — 직원은 채널 안에서 CLI 직원으로 고용한다.
+    const { name, description, isPublic, environmentId, password, groupId } = body;
 
     if (!name || typeof name !== "string" || name.length < 1 || name.length > 100) {
       return NextResponse.json(
@@ -447,46 +433,6 @@ export async function POST(req: NextRequest) {
       .returning();
 
     await ensureOfficeRoom(channel.id, userId);
-
-    if (gatewayConfig?.gatewayId || gatewayConfig?.url) {
-      try {
-        const resource =
-          typeof gatewayConfig.gatewayId === "string" && gatewayConfig.gatewayId
-            ? ((await getAccessibleGatewayResource(userId, gatewayConfig.gatewayId))?.resource ??
-              null)
-            : gatewayConfig?.url
-              ? await upsertOwnedGatewayResource({
-                  ownerUserId: userId,
-                  baseUrl: gatewayConfig.url,
-                  token: typeof gatewayConfig.token === "string" ? gatewayConfig.token : "",
-                  displayName:
-                    typeof gatewayConfig.displayName === "string"
-                      ? gatewayConfig.displayName
-                      : undefined,
-                })
-              : null;
-
-        if (!resource) {
-          return NextResponse.json(
-            {
-              errorCode: "gateway_access_denied",
-              error: "Gateway access denied",
-            },
-            { status: 403 },
-          );
-        }
-
-        await bindGatewayToChannel({
-          channelId: channel.id,
-          gatewayId: resource.id,
-          boundByUserId: userId,
-        });
-        // 연결 = 출근. 채널의 NPC 명단은 이 게이트웨이의 프로필이 정한다.
-        await hireGatewayProfilesIntoChannel(channel.id, resource.id);
-      } catch (gatewayErr) {
-        console.error("Failed to bind gateway resource during channel creation:", gatewayErr);
-      }
-    }
 
     // Auto-insert owner as member with role=owner
     await db.insert(channelMembers).values({

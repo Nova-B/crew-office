@@ -67,7 +67,7 @@ import {
   type ChannelAccessDeniedReason,
   summarizeChannelParticipationAccess,
 } from "../lib/rbac/channel-access";
-import { gatewayFailureMessageCode } from "../lib/hermes/classify-gateway-failure";
+import { gatewayFailureMessageCode } from "../lib/adapter-failure";
 import { type NpcResponseMessageCode, type NpcResponsePayload } from "../lib/npc-response-messages";
 import {
   deliverMeetingNpcAnswer,
@@ -82,8 +82,6 @@ import {
 import { createResummarizer } from "./meeting-resummarize";
 import { broadcastRoomMessage, registerRoomHandlers } from "./room-socket";
 import { normalizeOfficeAppearance } from "@/game/three/office-appearance";
-import { AUTOMATION_SOCKET_EVENTS, getWorkingSnapshot } from "./automation-events";
-import { setChannelActive, startAutomationPollers } from "./automation-poller";
 import {
   getOrCreateRoomRuntime,
   invalidateRoomRuntime,
@@ -109,8 +107,13 @@ import {
   ensureEmployeeWorkspace,
   withEmployeeWorkspace,
 } from "../lib/adapters/employee-workspace.js";
-import { isCliEmployeeAdapter } from "../lib/cli-employees.js";
-import { registerCrewMessenger, registerRoomEmitter } from "../lib/rpc-registry.js";
+import { isCliEmployeeAdapter, isRetiredNpcAdapter } from "../lib/cli-employees.js";
+import {
+  registerCrewMessenger,
+  registerRoomEmitter,
+  registerRoomMessageBroadcaster,
+} from "../lib/rpc-registry.js";
+import type { RoomMessage } from "@/lib/chat-rooms-policy";
 import {
   colleaguePrompt,
   createCrewMessenger,
@@ -126,16 +129,7 @@ import { createCrewControl } from "./crew-control";
 import nodePath from "node:path";
 import { GeminiAdapter } from "../lib/adapters/gemini-adapter.js";
 import { OpencodeAdapter as OpenCodeAdapter } from "../lib/adapters/opencode-adapter.js";
-import {
-  classifyNpcDispatch,
-  clearHermesRun,
-  createHermesAdapterForNpc,
-  deriveHermesContextKey,
-  persistHermesSessionRef,
-  persistNpcSessionRef,
-  getStoredNpcSessionRef,
-  registerHermesRun,
-} from "./hermes-dispatch";
+import { deriveContextKey, getStoredNpcSessionRef, persistNpcSessionRef } from "./npc-sessions";
 
 export const adapterRegistry = new AdapterRegistry();
 
@@ -409,24 +403,6 @@ export function getRoomUserIds(io: Server, channelId: string): string[] {
   return userIds;
 }
 
-/**
- * 채널 룸에 소켓이 하나라도 있는가 — 자동화 폴러의 주기(짧게/길게)를 정한다(R24).
- * `disconnect` 시점에는 소켓이 이미 룸에서 빠져 있으므로 그대로 세어도 맞다.
- */
-function channelHasSockets(io: Server, channelId: string): boolean {
-  return (io.sockets?.adapter?.rooms?.get(channelId)?.size ?? 0) > 0;
-}
-
-/** 폴러에 접속 유무를 알린다. 폴러 쪽 실패가 소켓 흐름을 막지 않도록 여기서 삼킨다. */
-function notifyChannelActivity(io: Server, channelId: string) {
-  void setChannelActive(channelId, channelHasSockets(io, channelId)).catch((err: unknown) => {
-    console.warn(
-      `[automation-poller] setChannelActive(${channelId}) failed:`,
-      err instanceof Error ? err.message : err,
-    );
-  });
-}
-
 /** Socket IDs currently associated with a given user (across all channels). */
 export function getSocketIdsForUser(userId: string): string[] {
   const socketIds: string[] = [];
@@ -552,20 +528,13 @@ function userContextOf(socket: { data?: Record<string, unknown> }): UserContext 
   return ctx && typeof ctx.name === "string" && ctx.name ? ctx : null;
 }
 
-// 예전에는 여기에 OpenClaw 게이트웨이 커넥션 풀(getOrConnectGateway /
-// invalidateGatewayConnectionForChannel)이 있었다. 게이트웨이 런타임 상태의 진짜
-// 무효화는 gateway-resources.ts 가 설정 변경 시점에 invalidateGatewayRuntimeState 로
-// 직접 하므로, 이 풀이 사라져도 무효화가 빠지지 않는다.
-
 // ---------------------------------------------------------------------------
 // NPC config loader
 // ---------------------------------------------------------------------------
 
 /**
- * 새 고용 경로(`hireGatewayProfilesIntoChannel`·`hireProfileIntoBoundChannels`)는
- * `agent_config` 를 NULL 로 둔다 — 이름·외형·인격의 정본이 프로필로 옮겨갔기 때문이다.
- * 그래서 폴백이 없으면 이 릴리스 이후 만들어지는 모든 NPC 가 `<team-instructions>`
- * 없이 회의에 들어간다. 기존 행은 옛 `agent_config` 를 그대로 쓴다.
+ * `agent_config` 에 `meetingProtocol` 이 없는 직원(예: 예전 Hermes 고용 경로가 만든 NPC)도
+ * 폴백이 없으면 `<team-instructions>` 없이 회의에 들어간다. 그래서 로케일 기본 규약으로 떨어진다.
  *
  * 기본 규약에는 "응답 언어 계약" 이 붙는다. 그 언어는 **요청 시점에** 정한다:
  * 요청한 사용자의 화면 언어 → 직원의 `agent_config.locale` → 마지막에만 "en".
@@ -579,23 +548,19 @@ export function resolveNpcInstructions(
   requestLocale?: string | null,
   adapterType?: string,
 ): string | undefined {
-  // crew-office: CLI 직원은 인격을 agent_config.soul 에 두고, Hermes 칸반 카드 안내는 받지 않는다
-  // (그 안내는 "카드가 Hermes 에 생성된다"고 말한다 — CLI 직원에게는 없는 기능이다).
+  // crew-office: CLI 직원은 인격을 agent_config.soul 에 둔다.
   const cli = isCliEmployeeAdapter(adapterType);
   const persona = cli && typeof oc.soul === "string" ? oc.soul : null;
-  const taskConfirmation = !cli;
   if (typeof oc.meetingProtocol === "string" && oc.meetingProtocol.trim()) {
     return composeNpcInstructions({
       persona,
       meetingProtocol: oc.meetingProtocol,
-      taskConfirmation,
     });
   }
   const locale = requestLocale || (typeof oc.locale === "string" ? oc.locale : undefined);
   return composeNpcInstructions({
     persona,
     meetingProtocol: getDefaultMeetingProtocol(locale),
-    taskConfirmation,
   });
 }
 
@@ -689,92 +654,23 @@ async function streamNpcResponse(
   emitEvent?: string,
   signal?: AbortSignal,
 ): Promise<string> {
-  const { _channelId, sessionKeyPrefix, adapterType, hermesProfileId } = npcConfig;
+  const { _channelId, sessionKeyPrefix, adapterType } = npcConfig;
   const responseEvent = emitEvent || "npc:response";
   const sessionKey = sessionKeyOverride || `${sessionKeyPrefix || npcId}-dm-${userId}`;
   // 대화 상대 한 줄과 보고 형식 규칙은 메시지 앞머리에 붙인다 — 시스템 프롬프트(instructions)는
   // 건드리지 않는다. 순서는 "누구와 말하는가" → "어떻게 보고하는가" → 실제 본문이다.
   const prompt = prefixUserContext(prefixReportFormat(message), userContextOf(socket));
 
-  const dispatchKind = classifyNpcDispatch({ adapterType, hermesProfileId });
-
-  if (dispatchKind === "unbound") {
+  if (isRetiredNpcAdapter(adapterType)) {
     emitNpcSystemResponse(socket, npcId, "npc_unbound");
     return "";
   }
 
-  if (dispatchKind === "hermes") {
-    const adapter = await createHermesAdapterForNpc(
-      npcId,
-      userId,
-      deriveHermesContextKey(sessionKey, sessionKeyPrefix || npcId),
-    );
-    if (!adapter) {
-      emitNpcSystemResponse(socket, npcId, "npc_unbound");
-      return "";
-    }
-
-    if (attachments?.some((a) => a.type === "image")) {
-      socket.emit(responseEvent, {
-        npcId,
-        chunk: "",
-        done: false,
-        messageCode: "hermes_image_unsupported",
-      });
-    }
-
-    try {
-      const { response, session } = await executeDmAdapter(
-        adapter,
-        {
-          sessionKey,
-          prompt,
-          instructions: npcConfig.instructions,
-          onDelta: (delta: string) => {
-            socket.emit(responseEvent, { npcId, chunk: delta, done: false });
-          },
-          // tool.progress 는 진행 신호이지 답변이 아니다. 그래서 **도구 이름만** 쓰고
-          // delta 본문은 버린다 — 실측(v0.20.2)에서 `_thinking` 툴은 완성된 답변 전체를
-          // delta 에 한 번 더 실어 보내는데, 예전에 이걸 채팅 청크로 흘리다가 1:1 대화에서
-          // 답이 정확히 두 번 보였다. 본문 경로(onDelta)와 활동 경로를 아예 갈라 두었으니
-          // 그 버그는 구조적으로 재발할 수 없다.
-          onToolProgress: (toolName: string) => {
-            // 빈 이름은 "도구가 끝났다"는 뜻이다(tool.completed) — 표시를 끈다.
-            const notice = describeActivity(toolName);
-            socket.emit("npc:activity", { npcId, activityKey: notice?.key ?? null });
-          },
-          onRunStarted: (runId: string) => {
-            registerHermesRun(sessionKey, runId);
-          },
-        },
-        undefined,
-        signal,
-      );
-      socket.emit(responseEvent, { npcId, chunk: "", done: true });
-      await persistHermesSessionRef(
-        npcId,
-        userId,
-        deriveHermesContextKey(sessionKey, sessionKeyPrefix || npcId),
-        session.sessionRef,
-      );
-      return response || "";
-    } catch (err) {
-      console.error("[npc] Hermes adapter error for " + npcId + ":", err);
-      emitNpcSystemResponse(socket, npcId, gatewayFailureMessageCode(err));
-      return "";
-    } finally {
-      clearHermesRun(sessionKey);
-      // 성공이든 실패든 활동 표시는 반드시 끈다 — 남으면 "영원히 검색 중"이 된다.
-      socket.emit("npc:activity", { npcId, activityKey: null });
-    }
-  }
-
-  // dispatchKind === "registry"
   if (adapterRegistry.has(adapterType)) {
     const adapter = adapterRegistry.get(adapterType);
-    // CLI 직원의 세션은 Hermes 와 같은 npc_sessions 행 규약(contextKey)으로 저장한다. 재개할 세션은
+    // CLI 직원의 세션은 npc_sessions 행 규약(contextKey)으로 저장한다. 재개할 세션은
     // 메모리 캐시가 아니라 DB 가 정한다 — 서버를 재시작해도 직원이 기억을 잇는다.
-    const contextKey = deriveHermesContextKey(sessionKey, sessionKeyPrefix || npcId);
+    const contextKey = deriveContextKey(sessionKey, sessionKeyPrefix || npcId);
     let messenger: ReturnType<typeof messengerForTurn> | null = null;
     const isCli = isCliEmployeeAdapter(adapterType);
     const channelId = npcConfig._channelId;
@@ -815,7 +711,7 @@ async function streamNpcResponse(
           onDelta: (delta: string) => {
             socket.emit(responseEvent, { npcId, chunk: delta, done: false });
           },
-          // Hermes 갈래와 같은 규칙: 도구 이름만 활동 표시로 쓰고, 빈 이름은 "끝났다"이다.
+          // tool.progress 는 진행 신호이지 답변이 아니다 — 도구 이름만 활동 표시로 쓰고, 빈 이름은 "끝났다"이다.
           onToolProgress: (toolName: string) => {
             const notice = describeActivity(toolName);
             socket.emit("npc:activity", { npcId, activityKey: notice?.key ?? null });
@@ -867,33 +763,18 @@ async function streamMeetingNpcResponse(
   userId: string,
   userContext: UserContext | null,
 ): Promise<void> {
-  const { id: npcId, agentId, sessionKeyPrefix, _name, adapterType, hermesProfileId } = npcConfig;
-  const dispatchKind = classifyNpcDispatch({ adapterType, hermesProfileId });
+  const { id: npcId, sessionKeyPrefix, _name, adapterType } = npcConfig;
 
-  if (dispatchKind === "unbound") {
+  if (isRetiredNpcAdapter(adapterType) || !adapterRegistry.has(adapterType)) {
     emitMeetingNpcStream(io, channelId, {
       npcId,
       npcName: _name,
       chunk: "",
       done: true,
-      messageCode: "npc_unbound",
+      messageCode: isRetiredNpcAdapter(adapterType) ? "npc_unbound" : "unsupported_adapter",
     });
     return;
   }
-
-  if (dispatchKind === "registry" && !adapterRegistry.has(adapterType)) {
-    emitMeetingNpcStream(io, channelId, {
-      npcId,
-      npcName: _name,
-      chunk: "",
-      done: true,
-      messageCode: "unsupported_adapter",
-    });
-    return;
-  }
-
-  // Skip openclaw NPCs without an assigned agent in meeting rooms (unchanged: silent no-op).
-  if (dispatchKind === "openclaw" && !agentId) return;
 
   const sessionKey = `${sessionKeyPrefix || _name}-meeting-${channelId}`;
   // 발언한 사람의 이름·소개와 보고 형식을 앞머리에 붙인다(회의 상대는 발언자다).
@@ -901,35 +782,6 @@ async function streamMeetingNpcResponse(
     prefixReportFormat(`${senderName}: ${userMessage}`),
     userContext,
   );
-
-  let hermesAdapter: Awaited<ReturnType<typeof createHermesAdapterForNpc>> = null;
-  let hermesContextKey = "";
-
-  if (dispatchKind === "openclaw") {
-    // OpenClaw 는 제거됐다. 이 어댑터로 남아 있는 NPC 는 회의에서 조용히 빠지는 대신
-    // 다시 연결해야 한다는 것을 알린다.
-    emitMeetingNpcStream(io, channelId, {
-      npcId,
-      npcName: _name,
-      chunk: "",
-      done: true,
-      messageCode: "npc_unbound",
-    });
-    return;
-  } else if (dispatchKind === "hermes") {
-    hermesContextKey = deriveHermesContextKey(sessionKey, sessionKeyPrefix || _name);
-    hermesAdapter = await createHermesAdapterForNpc(npcId, userId, hermesContextKey);
-    if (!hermesAdapter) {
-      emitMeetingNpcStream(io, channelId, {
-        npcId,
-        npcName: _name,
-        chunk: "",
-        done: true,
-        messageCode: "npc_unbound",
-      });
-      return;
-    }
-  }
 
   const npcMessage: MeetingMessage = {
     id: `npc-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -959,39 +811,23 @@ async function streamMeetingNpcResponse(
     });
   };
 
-  /** hermes 분기에서만 채워진다 — 답변을 확정 전달한 뒤에 best-effort로 영속화한다(M6). */
-  let persistSessionRef: (() => Promise<void>) | null = null;
   try {
-    if (dispatchKind === "hermes") {
-      const { response, session } = await hermesAdapter!.execute({
-        sessionKey,
-        prompt,
-        instructions: npcConfig.instructions,
-        onDelta,
-        onRunStarted: (runId: string) => registerHermesRun(sessionKey, runId),
-      });
-      fullText = response || fullText;
-      persistSessionRef = () =>
-        persistHermesSessionRef(npcId, userId, hermesContextKey, session.sessionRef);
-    } else {
-      // dispatchKind === "registry"
-      const registered = adapterRegistry.get(adapterType);
-      const adapter = isCliEmployeeAdapter(adapterType)
-        ? withEmployeeWorkspace(registered, npcId)
-        : registered;
-      const { response } = await adapter.execute({
-        sessionKey,
-        prompt,
-        instructions: npcConfig.instructions,
-        model:
-          typeof npcConfig.adapterConfig.model === "string"
-            ? npcConfig.adapterConfig.model
-            : undefined,
-        onDelta,
-        timeoutMs: 180_000,
-      });
-      fullText = response || fullText;
-    }
+    const registered = adapterRegistry.get(adapterType);
+    const adapter = isCliEmployeeAdapter(adapterType)
+      ? withEmployeeWorkspace(registered, npcId)
+      : registered;
+    const { response } = await adapter.execute({
+      sessionKey,
+      prompt,
+      instructions: npcConfig.instructions,
+      model:
+        typeof npcConfig.adapterConfig.model === "string"
+          ? npcConfig.adapterConfig.model
+          : undefined,
+      onDelta,
+      timeoutMs: 180_000,
+    });
+    fullText = response || fullText;
 
     npcMessage.content = fullText;
     await deliverMeetingNpcAnswer({
@@ -1005,15 +841,10 @@ async function streamMeetingNpcResponse(
           done: true,
         }),
       emitMessage: () => io.to(`meeting-${channelId}`).emit("meeting:message", npcMessage),
-      persistSessionRef,
-      onPersistError: (err) =>
-        console.error(`[meeting] hermes session ref persist failed for NPC ${_name}:`, err),
     });
   } catch (err) {
-    console.error(`[meeting] ${dispatchKind} error for NPC ${_name}:`, err);
+    console.error(`[meeting] ${adapterType} error for NPC ${_name}:`, err);
     room.messages.pop();
-  } finally {
-    if (dispatchKind === "hermes") clearHermesRun(sessionKey);
   }
 }
 
@@ -1227,6 +1058,10 @@ async function isChannelOwner(channelId: string, userId: string): Promise<boolea
 export function setupSocketHandlers(io: Server) {
   // crew-office: API 라우트(CLI 직원 고용 등)가 같은 프로세스에서 방 이벤트를 보낼 수 있게 한다.
   registerRoomEmitter((room, event, payload) => io.to(room).emit(event, payload));
+  // 저장된 방 메시지(회의 결과 알림 등)의 방송 — API 라우트·lib 가 소켓 모듈을 import 하지 않고 쓴다.
+  registerRoomMessageBroadcaster((roomId, message) =>
+    broadcastRoomMessage(io, roomId, message as RoomMessage),
+  );
   crewIo = io;
   crewMessenger = createCrewMessenger({
     listColleagues: async (channelId) =>
@@ -1376,11 +1211,6 @@ export function setupSocketHandlers(io: Server) {
     }),
   });
 
-  // 묶인 채널의 자동화 사건 폴러. 뜨지 못해도 채팅·이동은 되어야 하므로 실패는 로그만.
-  void startAutomationPollers(io).catch((err: unknown) => {
-    console.error("[automation-poller] failed to start:", err);
-  });
-
   // 이 기능 이전에 자리 없이 만들어진 직원을 1회 이행한다. 멱등이고, 실패해도 부팅은 계속한다.
   void import("../lib/npc-seating")
     .then(({ placeAllUnplacedNpcs }) => placeAllUnplacedNpcs())
@@ -1498,7 +1328,6 @@ export function setupSocketHandlers(io: Server) {
           await socket.leave(previousChannel);
           socket.to(previousChannel).emit("player:left", { id: socket.id });
           await coordination.left(socket, previousChannel);
-          notifyChannelActivity(io, previousChannel);
         }
         const identity = { userId: user.userId, characterId: mine.id, mapId: data.mapId };
         const resume = playerResumeStates.get(identity);
@@ -1623,13 +1452,6 @@ export function setupSocketHandlers(io: Server) {
         });
         await coordination.joined(socket, data.mapId);
         if (!admissionCurrent()) return;
-
-        // 자동화 맵 상태의 현재 값을 이 소켓에만 한 번(R27). 작업 중인 NPC 만 실린다 —
-        // 클라이언트 기본값이 working:false 다. 이후 변화는 채널 방송으로 온다.
-        for (const snapshot of getWorkingSnapshot(data.mapId)) {
-          socket.emit(AUTOMATION_SOCKET_EVENTS.working, snapshot);
-        }
-        notifyChannelActivity(io, data.mapId);
 
         // Send current players on this map to the joining player
         const mapPlayers = Array.from(players.values()).filter(
@@ -2177,7 +1999,6 @@ export function setupSocketHandlers(io: Server) {
         });
 
         players.delete(socket.id);
-        notifyChannelActivity(io, player.mapId);
       }
 
       // Clean up meeting room participation

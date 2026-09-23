@@ -2,14 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { NextRequest } from "next/server";
 
-import {
-  authHeaders,
-  seedGateway,
-  seedHermesProfile,
-  seedNpc,
-  seedUser,
-  setupThrowawaySqlite,
-} from "@/test-setup/npc-seed";
+import { authHeaders, seedNpc, seedUser, setupThrowawaySqlite } from "@/test-setup/npc-seed";
 
 /**
  * 계약 4-B "빠른 시작".
@@ -115,41 +108,13 @@ test("게이트웨이가 하나도 없어도 성공한다", async () => {
   assert.equal(typeof body.channelId, "string");
 });
 
-test("게이트웨이를 붙이고 출근시키면 곧바로 데스크 좌석에 앉는다", async () => {
-  const { userId } = await seedDefaultGroupAdmin();
-  const first = await callQuickStart(userId);
-  const channelId = first.body.channelId as string;
-
-  // 게이트웨이를 붙이고 프로필을 출근시킨다 — 고용 경로가 이미 배치까지 끝낸다.
-  const gateway = await seedGateway(userId);
-  await seedHermesProfile(gateway.id);
-  const { bindGatewayToChannel } = await import("@/lib/gateway-resources");
-  const { hireGatewayProfilesIntoChannel } = await import("@/lib/npc-roster");
-  await bindGatewayToChannel({ channelId, gatewayId: gateway.id, boundByUserId: userId });
-  await hireGatewayProfilesIntoChannel(channelId, gateway.id);
-
-  const { db, npcs } = await import("@/db");
-  const { eq } = await import("drizzle-orm");
-  const after = await db.select().from(npcs).where(eq(npcs.channelId, channelId));
-  assert.equal(after.length, 1);
-  assert.ok(
-    Number.isInteger(after[0].positionX) && Number.isInteger(after[0].positionY),
-    "데스크 좌석 또는 서는 칸에 이미 앉아 있다",
-  );
-});
-
 test("빠른 시작은 이 기능 이전에 자리 없이 만들어진 직원의 안전망이다", async () => {
   const { userId } = await seedDefaultGroupAdmin();
   const first = await callQuickStart(userId);
   const channelId = first.body.channelId as string;
 
-  // `hireGatewayProfilesIntoChannel` 을 거치지 않고 자리 미정 NPC 를 직접 심는다 —
-  // 이 기능 이전 데이터를 흉내낸다.
-  const gateway = await seedGateway(userId);
-  const profile = await seedHermesProfile(gateway.id);
-  const { bindGatewayToChannel } = await import("@/lib/gateway-resources");
-  await bindGatewayToChannel({ channelId, gatewayId: gateway.id, boundByUserId: userId });
-  await seedNpc({ channelId, hermesProfileId: profile.id, active: true });
+  // 자리 미정 NPC 를 직접 심는다 — 이 기능 이전 데이터를 흉내낸다.
+  await seedNpc({ channelId, adapterType: "claude", active: true });
 
   const { db, npcs } = await import("@/db");
   const { eq } = await import("drizzle-orm");
@@ -176,8 +141,6 @@ test("비로그인은 거부한다", async () => {
 
 test("응답에는 식별자 둘뿐이고 토큰이 실리지 않는다", async () => {
   const { userId } = await seedDefaultGroupAdmin();
-  const gateway = await seedGateway(userId);
-  await seedHermesProfile(gateway.id);
 
   const { response, body } = await callQuickStart(userId);
   assert.equal(response.status, 200);

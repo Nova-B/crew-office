@@ -16,6 +16,7 @@ import { buildOfficeEnvironment } from "@/game/three/office-environments";
 // `db` 는 지연 초기화 싱글턴이고 node:test 는 파일마다 프로세스를 나누므로, 모듈
 // 최상단에서 한 번 임시 DB 를 잡으면 이 파일의 모든 테스트가 그 DB 를 쓴다.
 setupThrowawaySqlite("npcs-contract-test");
+// crew-office: 이 라우트는 은퇴한 어댑터(hermes·openclaw)의 옛 직원을 숨긴다 — 씨앗은 CLI 직원(claude)으로 심는다.
 
 type NpcBody = {
   npcs: Array<{
@@ -25,7 +26,7 @@ type NpcBody = {
     positionY: number | null;
     appearance: unknown;
     adapterType: string;
-    hermesProfileId: string;
+    hermesProfileId: string | null;
     active?: boolean;
     placed?: boolean;
   }>;
@@ -46,6 +47,7 @@ async function get(query: string, userId: string): Promise<NpcBody> {
 
 test("roster 없이 부르면 자리 미정·휴면 NPC 는 절대 나오지 않는다", async () => {
   const { channelId, userId } = await seedChannelWithProfiles({
+    adapterType: "claude",
     placedActive: 1,
     unplaced: 1,
     dormant: 1,
@@ -68,6 +70,7 @@ test("roster 없이 부르면 자리 미정·휴면 NPC 는 절대 나오지 않
 
 test("roster=1 이면 셋 다 나오고 placed 가 구분한다", async () => {
   const { channelId, userId } = await seedChannelWithProfiles({
+    adapterType: "claude",
     placedActive: 1,
     unplaced: 1,
     dormant: 1,
@@ -85,6 +88,7 @@ test("roster=1 이면 셋 다 나오고 placed 가 구분한다", async () => {
 
 test("응답의 name 은 프로필 표시 이름이다 — npcs.name 의 옛 값이 아니다", async () => {
   const { channelId, userId } = await seedChannelWithProfiles({
+    adapterType: "claude",
     placedActive: 1,
     staleNpcName: "옛이름",
     displayName: "올리버",
@@ -111,7 +115,7 @@ test("channelId 없이 부르면 400 이다 — 전 채널 NPC 를 흘리지 않
 // 채널 UUID 만 아는 아무 로그인 사용자나 남의 사무실에 어떤 인격이 누구 소유로 몇 명
 // 나와 있는지 읽을 수 있으면 안 된다.
 test("채널 멤버가 아니면 출근부를 읽지 못한다", async () => {
-  const { channelId } = await seedChannelWithProfiles({ placedActive: 1 });
+  const { channelId } = await seedChannelWithProfiles({ adapterType: "claude", placedActive: 1 });
   const outsider = await seedUser("outsider");
 
   const res = await rawGet(`channelId=${channelId}&roster=1`, outsider.id);
@@ -124,7 +128,7 @@ test("채널 멤버가 아니면 출근부를 읽지 못한다", async () => {
 });
 
 test("로그인하지 않으면 401 이다", async () => {
-  const { channelId } = await seedChannelWithProfiles({ placedActive: 1 });
+  const { channelId } = await seedChannelWithProfiles({ adapterType: "claude", placedActive: 1 });
   const { GET } = await import("./route");
   const res = await GET(new NextRequest(`http://localhost/api/npcs?channelId=${channelId}`));
   assert.equal(res.status, 401);
@@ -132,6 +136,7 @@ test("로그인하지 않으면 401 이다", async () => {
 
 test("roster=1 은 좌석 번호를 싣는다 — 데스크 좌석이면 번호, 서 있으면 null", async () => {
   const { channelId, userId } = await seedChannelWithProfiles({
+    adapterType: "claude",
     unplaced: 5,
     mapData: buildOfficeEnvironment("executive"),
   });

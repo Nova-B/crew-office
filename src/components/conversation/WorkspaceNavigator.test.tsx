@@ -119,7 +119,7 @@ test("NPC overflow actions follow motion state and owner permissions", async () 
   await act(async () => button(owner.element, "소피 관리").click());
   assert.ok(button(owner.element, "복귀"));
   assert.ok(button(owner.element, "자리 이동"));
-  // crew-office: 프로필 설정은 Hermes 프로필 화면이라 숨긴다(product-mode.ts).
+  // crew-office: 프로필 설정(Hermes 프로필 화면)은 Hermes 와 함께 걷어냈다.
   assert.equal(
     [...owner.element.querySelectorAll("button")].some((b) => b.textContent === "프로필 설정"),
     false,

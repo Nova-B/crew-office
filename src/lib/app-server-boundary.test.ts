@@ -11,7 +11,7 @@ import test from "node:test";
  * Next/Turbopack 번들로 끌려왔고, 그 파일의 `.js` 확장자 상대 import(tsx 런타임용)가
  * "Module not found" 5건으로 `npm run build` 를 깨뜨렸다. `npm run test` 도 `tsc` 도 잡지 못한다.
  *
- * 소켓 서버 쪽 기능이 라우트에 필요하면 `automation-registry.ts` 같은 `globalThis` 레지스트리를
+ * 소켓 서버 쪽 기능이 라우트에 필요하면 `rpc-registry.ts`·`meeting-registry.ts` 같은 `globalThis` 레지스트리를
  * 거친다(`rpc-registry.ts` 와 같은 무늬). 타입만 필요해도 서버 모듈이 아니라 lib 쪽에 둔다.
  */
 

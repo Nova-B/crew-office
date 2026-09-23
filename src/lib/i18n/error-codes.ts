@@ -1,6 +1,4 @@
 export type ErrorCode =
-  | "review_policy_required"
-  | "swarm_review_policy_unsupported"
   | "setup_invalid_request"
   | "invalid_credentials"
   | "login_id_password_required"
@@ -194,31 +192,10 @@ export type ErrorCode =
   | "bad_request"
   | "unsupported_config_key"
   | "malformed_response"
-  | "no_profile"
-  | "oauth_denied"
-  | "oauth_expired"
-  | "oauth_error"
-  | "oauth_flow_unsupported"
-  | "oauth_start_rejected"
-  | "oauth_start_failed"
-  | "oauth_start_timeout"
-  | "oauth_session_not_found"
-  | "oauth_session_mismatch"
-  | "provider_not_api_key"
-  | "invalid_key_value"
-  | "env_write_failed"
-  | "invalid_profile"
-  | "missing_keys"
-  | "unknown_env_key"
-  | "provider_needs_cli"
-  | "toolset_not_found"
-  | "toolset_has_no_providers"
-  | "config_write_failed";
+  | "no_profile";
 
 /** 등록된 모든 에러코드 → 번역 키. 커버리지 가드가 이 표 전체를 훑는다. */
 export const ERROR_MESSAGE_KEYS: Record<ErrorCode, string> = {
-  review_policy_required: "kanban.review.unsupported",
-  swarm_review_policy_unsupported: "kanban.review.swarmUnsupported",
   invalid_credentials: "errors.invalidCredentials",
   login_id_password_required: "errors.loginIdPasswordRequired",
   login_id_nickname_password_required: "errors.loginIdNicknamePasswordRequired",
@@ -415,29 +392,6 @@ export const ERROR_MESSAGE_KEYS: Record<ErrorCode, string> = {
   unsupported_config_key: "errors.unsupportedConfigKey",
   malformed_response: "errors.malformedResponse",
   no_profile: "errors.noProfile",
-  // 프로바이더 인증(플러그인 profile_oauth·profile_provider_keys). 프록시가 업스트림 코드를
-  // 동적으로 싣고, oauth_denied·oauth_expired·oauth_error 는 ProviderAuthPanel 이 폴 상태에서
-  // 만든다. 문구는 hermes.providerAuth.* 블록에 둔다.
-  oauth_denied: "hermes.providerAuth.failed.oauth_denied",
-  oauth_expired: "hermes.providerAuth.failed.oauth_expired",
-  oauth_error: "hermes.providerAuth.failed.oauth_error",
-  oauth_flow_unsupported: "hermes.providerAuth.errors.oauthFlowUnsupported",
-  oauth_start_rejected: "hermes.providerAuth.errors.oauthStartRejected",
-  oauth_start_failed: "hermes.providerAuth.errors.oauthStartFailed",
-  oauth_start_timeout: "hermes.providerAuth.errors.oauthStartTimeout",
-  oauth_session_not_found: "hermes.providerAuth.errors.oauthSessionNotFound",
-  oauth_session_mismatch: "hermes.providerAuth.errors.oauthSessionMismatch",
-  provider_not_api_key: "hermes.providerAuth.errors.providerNotApiKey",
-  invalid_key_value: "hermes.providerAuth.errors.invalidKeyValue",
-  env_write_failed: "hermes.providerAuth.errors.envWriteFailed",
-  invalid_profile: "hermes.providerAuth.errors.invalidProfile",
-  // 도구별 프로바이더(플러그인 profile_tool_providers, 0.10.0). 문구는 hermes.toolProviders.* 블록.
-  missing_keys: "hermes.toolProviders.errors.missingKeys",
-  unknown_env_key: "hermes.toolProviders.errors.unknownEnvKey",
-  provider_needs_cli: "hermes.toolProviders.errors.providerNeedsCli",
-  toolset_not_found: "hermes.toolProviders.errors.toolsetNotFound",
-  toolset_has_no_providers: "hermes.toolProviders.errors.toolsetHasNoProviders",
-  config_write_failed: "hermes.toolProviders.errors.configWriteFailed",
 };
 
 type Translator = (key: string, params?: Record<string, string | number>) => string;

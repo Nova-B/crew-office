@@ -1,4 +1,4 @@
-import { withStreamDiagnosticRequest } from "@/lib/hermes/stream-diagnostics";
+import { withStreamDiagnosticRequest } from "@/lib/stream-diagnostics";
 // 맵 채팅에서 지명받은 NPC 들이 동시에 대답한다. 루프가 없다 — 사람의 말이 올 때만 깨어난다.
 //
 // 회의(ChannelRuntime)와 갈라 둔 이유: 회의는 매 라운드 "다음은 누구"를 정하는 박자로 돌지만

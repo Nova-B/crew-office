@@ -1,7 +1,7 @@
 /**
  * 회의 훅 레지스트리 — 라우트(`src/app/**`)가 소켓 서버의 어댑터에 닿는 유일한 길.
  *
- * `automation-registry.ts` 와 같은 무늬다. 라우트는 `src/server/**` 를 import 하지 않는다
+ * `rpc-registry.ts` 와 같은 무늬다. 라우트는 `src/server/**` 를 import 하지 않는다
  * (`app-server-boundary.test.ts`). 소켓 서버가 뜰 때 실제 구현을 `globalThis` 에 꽂는다.
  */
 import type { OutcomeParticipant, ParsedMeetingOutcome } from "./meeting-outcome";

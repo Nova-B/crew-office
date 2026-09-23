@@ -18,37 +18,6 @@ function readTrimmed(env, key) {
  * @param {Record<string, string | undefined>} env
  * @returns {{ errors: string[], warnings: string[], dbTarget: "postgresql" | "sqlite" }}
  */
-/**
- * 이 컴퓨터에 Hermes 가 없으면 한 줄 알려 준다. Hermes 가 있으면 아무 말도 하지 않는다.
- *
- * 2026-09-19 부터 호스트 설정은 관리자에게 기본으로 열린다 — 연결 마법사의 "로컬 연결" 에서 설치할 수
- * 있다고 안내한다. 운영자가 스위치를 `0` 으로 꺼 두었으면 켜는 명령을 안내한다.
- *
- * @param {Record<string, string | undefined>} [env]
- * @param {string} [homeDir]
- * @returns {string | null}
- */
-function hostSetupHint(env = process.env, homeDir = require("node:os").homedir()) {
-  const fs = require("node:fs");
-  const path = require("node:path");
-  const off = (key) => ["0", "false", "no", "off"].includes((env[key] ?? "").trim().toLowerCase());
-  try {
-    if (fs.existsSync(path.join(homeDir, ".hermes", "hermes-agent"))) return null;
-    // 결합 이미지(deskrpg-office)는 Hermes 를 같은 컨테이너에 담고 HERMES_HOME 으로 가리킨다.
-    // 홈 밑의 `.hermes` 만 보면 그 환경에서 "Hermes 가 없다"고 잘못 알린다(실측: 컨테이너 부팅 로그).
-    const hermesHome = (env.HERMES_HOME ?? "").trim();
-    if (hermesHome && fs.existsSync(hermesHome)) return null;
-    // 그 밖에도 PATH 에 hermes 가 있으면 이미 깔려 있는 것이다.
-    const pathDirs = (env.PATH ?? "").split(path.delimiter).filter(Boolean);
-    if (pathDirs.some((dir) => fs.existsSync(path.join(dir, "hermes")))) return null;
-  } catch {
-    return null;
-  }
-  if (off("DESKRPG_HOST_SETUP_ENABLED") || off("DESKRPG_HERMES_INSTALL_ENABLED"))
-    return "이 컴퓨터에 Hermes 가 없습니다 — 연결 마법사로 함께 설치하려면 `deskrpg host-setup on --with-install` 을 실행한 뒤 다시 시작하세요.";
-  return "이 컴퓨터에 Hermes 가 없습니다 — 관리자 계정으로 연결 → 새 게이트웨이 → 로컬 연결에서 설치할 수 있습니다.";
-}
-
 const { isPlaceholderSecret } = require("./runtime-paths.js");
 
 function inspectEnvironment(env = process.env) {
@@ -293,7 +262,6 @@ module.exports = {
   DEFAULT_DB_PROBE_TIMEOUT_MS,
   checkDatabaseReachable,
   checkPortAvailable,
-  hostSetupHint,
   inspectEnvironment,
   reportEnvironmentInspection,
 };

@@ -4,7 +4,7 @@ import { HOME_PATH } from "@/lib/product-mode";
 import type { MouseEvent, ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { UsersRound, Network, UserRound, Building2 } from "lucide-react";
+import { UserRound, Building2 } from "lucide-react";
 import DeskRpgMark from "./DeskRpgMark";
 import OfficeBuilding from "./OfficeBuilding";
 import LocaleSwitcher from "./LocaleSwitcher";
@@ -20,8 +20,6 @@ export default function WorkspaceShell({ children }: { children: ReactNode }) {
     return children;
   }
   const icons = {
-    gateways: Network,
-    profiles: UsersRound,
     characters: UserRound,
     channels: Building2,
   } as const;

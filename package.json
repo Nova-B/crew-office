@@ -69,11 +69,7 @@
     "db:setup": "dotenv -e .env.local -- drizzle-kit migrate",
     "deploy:test": "bash deploy/test-deploy.sh",
     "test:e2e": "playwright test",
-    "test:e2e:fixtures": "playwright test --config playwright.fixtures.config.ts",
-    "capture:readme": "tsx scripts/readme-capture/session.ts",
-    "capture:readme:record": "playwright test --config playwright.readme-capture.config.ts",
-    "capture:readme:media": "tsx scripts/readme-capture/media.ts",
-    "capture:readme:verify": "tsx scripts/readme-capture/verify-readme.ts"
+    "test:e2e:fixtures": "playwright test --config playwright.fixtures.config.ts"
   },
   "dependencies": {
     "@codemirror/language": "^6.12.4",

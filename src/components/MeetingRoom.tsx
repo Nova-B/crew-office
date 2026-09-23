@@ -1398,20 +1398,15 @@ export default function MeetingRoom({
                   )}
                 </div>
 
-                {/* 결정·후속 업무와 "프로젝트로 등록할까요?" — 회의록이 저장됐을 때만 */}
+                {/* 결정·후속 업무 — 회의록이 저장됐을 때만 */}
                 {lastMeetingResult.minutesId && (
                   <MeetingOutcomeSection
                     minutesId={lastMeetingResult.minutesId}
-                    channelId={channelId}
                     npcs={npcs}
                     onSummaryChanged={(summary) =>
                       setLastMeetingResult((prev) => (prev ? { ...prev, ...summary } : prev))
                     }
-                    onOutcomeLoaded={(pending) => {
-                      if (!pending) autoReturn.hint();
-                    }}
-                    onRegistered={autoReturn.start}
-                    onDeclined={autoReturn.start}
+                    onOutcomeLoaded={autoReturn.hint}
                   />
                 )}
 

@@ -10,6 +10,16 @@ export function isCliEmployeeAdapter(value: unknown): value is CliEmployeeAdapte
   return typeof value === "string" && (CLI_EMPLOYEE_ADAPTERS as readonly string[]).includes(value);
 }
 
+/**
+ * crew-office: Hermes·OpenClaw 는 걷어냈다. 그 어댑터로 남은 옛 NPC(와 이관 표시 "unbound")는 대화할 수
+ * 없으니 "다시 연결(고용)해야 한다"(`npc_unbound`)로 알린다. 모르는 어댑터는 `unsupported_adapter` 다.
+ */
+const RETIRED_NPC_ADAPTERS: readonly string[] = ["unbound", "hermes", "openclaw"];
+
+export function isRetiredNpcAdapter(value: unknown): boolean {
+  return typeof value === "string" && RETIRED_NPC_ADAPTERS.includes(value);
+}
+
 export const CLI_EMPLOYEE_LIMITS = { name: 40, model: 80, soul: 8_000 } as const;
 
 export interface CliEmployeeInput {

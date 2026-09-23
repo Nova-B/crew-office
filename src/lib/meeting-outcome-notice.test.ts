@@ -1,4 +1,4 @@
-// 회의 결과 방 알림 — 언제 내는가(순수 판정)와, 방에 남고 등록 뒤 되쓰이는가(일회용 SQLite).
+// 회의 결과 방 알림 — 언제 내는가(순수 판정)와, 방에 남고 방송되는가(일회용 SQLite).
 import assert from "node:assert/strict";
 import test from "node:test";
 
@@ -62,16 +62,10 @@ async function seed() {
 
 test("알리면 사무실 방에 시스템 알림이 남고 방송 훅이 불린다", async () => {
   const { channelId } = await seed();
-  const { registerAutomationHooks, resetAutomationHooksForTests } =
-    await import("@/lib/automation-registry");
+  const { registerRoomMessageBroadcaster } = await import("@/lib/rpc-registry");
   const emitted: unknown[] = [];
-  registerAutomationHooks({
-    pollNow: async () => null,
-    refreshPollers: async () => {},
-    getWorkingSnapshot: () => [],
-    emitRoomMessage: (_roomId: string, message: unknown) => {
-      emitted.push(message);
-    },
+  registerRoomMessageBroadcaster((_roomId: string, message: unknown) => {
+    emitted.push(message);
   });
   try {
     const { announceMeetingOutcome } = await import("./meeting-outcome-notice");
@@ -83,7 +77,7 @@ test("알리면 사무실 방에 시스템 알림이 남고 방송 훅이 불린
       summaryStatus: "ok",
     });
   } finally {
-    resetAutomationHooksForTests();
+    registerRoomMessageBroadcaster(undefined);
   }
 
   const rows = await officeNotices(channelId);
@@ -104,78 +98,4 @@ test("알릴 조건이 아니면 방에 아무것도 남기지 않는다", async
     summaryStatus: "ok",
   });
   assert.equal((await officeNotices(channelId)).length, 0);
-});
-
-test("등록되면 같은 줄에 결과가 되쓰인다 — 다른 회의의 알림은 건드리지 않는다", async () => {
-  const { channelId } = await seed();
-  const { announceMeetingOutcome, markMeetingOutcomeNoticeRegistered } =
-    await import("./meeting-outcome-notice");
-  for (const minutesId of ["m-4", "m-40"])
-    await announceMeetingOutcome({
-      channelId,
-      minutesId,
-      topic: minutesId,
-      outcome,
-      summaryStatus: "ok",
-    });
-
-  const { registerAutomationHooks, resetAutomationHooksForTests } =
-    await import("@/lib/automation-registry");
-  const reEmitted: Array<{ id?: string; notice?: { minutesId?: string; resolved?: unknown } }> = [];
-  registerAutomationHooks({
-    pollNow: async () => null,
-    refreshPollers: async () => {},
-    getWorkingSnapshot: () => [],
-    emitRoomMessage: (_roomId: string, message: unknown) => {
-      reEmitted.push(message as (typeof reEmitted)[number]);
-    },
-  });
-  try {
-    await markMeetingOutcomeNoticeRegistered({
-      channelId,
-      minutesId: "m-4",
-      registered: {
-        boardSlug: "board-1",
-        tenant: "가격-개편",
-        taskIds: ["t1", "t2"],
-        by: "user-1",
-        at: "2026-09-21T00:00:00.000Z",
-      },
-    });
-  } finally {
-    resetAutomationHooksForTests();
-  }
-  // 되쓴 줄을 같은 id 로 다시 방송한다 — 그러지 않으면 열려 있는 화면은 새로고침 전까지 등록 버튼을 그대로 보여 준다.
-  assert.equal(reEmitted.length, 1);
-  assert.equal(reEmitted[0].notice?.minutesId, "m-4");
-  assert.ok(reEmitted[0].notice?.resolved);
-
-  const byId = new Map(
-    (await officeNotices(channelId)).map((m) => {
-      assert.ok(m.notice?.kind === "meeting_outcome");
-      return [m.notice.kind === "meeting_outcome" ? m.notice.minutesId : "", m.notice] as const;
-    }),
-  );
-  const done = byId.get("m-4");
-  assert.ok(done?.kind === "meeting_outcome");
-  assert.deepEqual(done.kind === "meeting_outcome" ? done.resolved : null, {
-    boardSlug: "board-1",
-    tenant: "가격-개편",
-    taskCount: 2,
-    by: "user-1",
-    at: "2026-09-21T00:00:00.000Z",
-  });
-  // `m-4` 는 `m-40` 의 부분 문자열이다 — LIKE 로 찾은 뒤 id 를 정확히 맞춰야 한다.
-  const other = byId.get("m-40");
-  assert.equal(other?.kind === "meeting_outcome" ? other.resolved : "x", undefined);
-});
-
-test("알림 줄이 없어도 되쓰기는 던지지 않는다 — 등록을 실패시키지 않는다", async () => {
-  const { channelId } = await seed();
-  const { markMeetingOutcomeNoticeRegistered } = await import("./meeting-outcome-notice");
-  await markMeetingOutcomeNoticeRegistered({
-    channelId,
-    minutesId: "없는-회의",
-    registered: { boardSlug: "b", tenant: null, taskIds: [], by: "u", at: "2026-09-21T00:00:00Z" },
-  });
 });

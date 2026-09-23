@@ -22,84 +22,30 @@ export type RoomMessage = {
   senderName: string;
   content: string;
   createdAt: string;
-  /** 자동화 알림(칸반 카드·크론 결과)의 구조. 일반 메시지에는 없다(R29·R30). */
+  /** 구조화 알림(회의 결과)의 구조. 일반 메시지에는 없다. */
   notice?: RoomNotice | null;
 };
 
 /**
- * `chat_room_messages.notice_json` 의 모양. `content` 는 로케일 무관 폴백(카드 제목·결과
- * 본문)이고, 카드 렌더링에 필요한 나머지는 여기 실린다 — 서버가 한국어 문장을 굳히지
+ * `chat_room_messages.notice_json` 의 모양. `content` 는 로케일 무관 폴백(회의 주제)이고,
+ * 렌더링에 필요한 나머지는 여기 실린다 — 서버가 한국어 문장을 굳히지
  * 않기 위해서다(시스템 메시지와 같은 원칙).
  */
-export type RoomNotice =
-  | {
-      kind: "card_done" | "card_blocked" | "card_review";
-      cardId: string;
-      cardTitle: string;
-      boardSlug: string;
-      npcName: string;
-    }
-  | {
-      /** 실행 전 승인 요청(설계 2026-09-21 execution-approval-gate). 버튼은 렌더러가 그린다. */
-      kind: "approval_requested";
-      approvalId: string;
-      title: string;
-      npcName: string;
-      targetCount: number;
-      /** 결정되면 채워진다 — 버튼 대신 결과를 그린다. 클라이언트가 숨기는 것이 아니다. */
-      resolved?: { decision: string; by: string; at: string };
-    }
-  | {
-      /**
-       * NPC 가 제안한 업무 카드. 아직 카드가 아니다 — 사용자가 알림에서 등록 여부를 고르고,
-       * 고른 결과가 `resolved` 로 남는다(없으면 아직 미결).
-       */
-      kind: "card_proposal";
-      proposalId: string;
-      title: string;
-      summary: string;
-      body?: string;
-      acceptance?: string;
-      npcId: string;
-      npcName: string;
-      resolved?: { choice: "card" | "inline"; by: string; at: string; taskId?: string };
-    }
-  | {
-      /**
-       * 후속 업무가 나온 회의가 끝났다 — "프로젝트로 등록할까요?" 를 방에 남긴다. 회의는 자동화
-       * 사건이 아니라 사건 싱크를 타지 않는다. 이름이 아니라 **id 와 개수만** 싣는다(사본이 낡지 않게).
-       */
-      kind: "meeting_outcome";
-      minutesId: string;
-      topic: string;
-      followUpCount: number;
-      recommended: boolean;
-      /** 등록되면 채워진다 — 버튼 대신 결과를 그린다. */
-      resolved?: {
-        boardSlug: string;
-        tenant: string | null;
-        taskCount: number;
-        by: string;
-        at: string;
-      };
-    }
-  | {
-      kind: "cron_result";
-      jobId: string;
-      jobName: string;
-      npcName: string;
-      status: "ok" | "error";
-    };
+export type RoomNotice = {
+  /**
+   * 후속 업무가 나온 회의가 끝났다 — 방에 한 줄을 남긴다. 이름이 아니라 **id 와 개수만** 싣는다
+   * (사본이 낡지 않게).
+   */
+  kind: "meeting_outcome";
+  minutesId: string;
+  topic: string;
+  followUpCount: number;
+  recommended: boolean;
+};
 
-const ROOM_NOTICE_KINDS = new Set([
-  "card_done",
-  "card_blocked",
-  "card_review",
-  "approval_requested",
-  "card_proposal",
-  "meeting_outcome",
-  "cron_result",
-]);
+// crew-office: 칸반 카드·승인 요청·카드 제안·크론 결과 알림은 Hermes 와 함께 걷어냈다. DB 에 남은 옛 알림은
+// 모르는 kind 라 notice 없이 읽혀 일반 줄(`content`)로 보인다 — 메시지 자체는 살린다.
+const ROOM_NOTICE_KINDS = new Set(["meeting_outcome"]);
 
 /** 저장된 JSON 문자열을 되읽는다. 깨진 값·모르는 kind 는 null — 메시지 자체는 살린다. */
 export function parseRoomNotice(raw: string | null | undefined): RoomNotice | null {

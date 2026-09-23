@@ -2,7 +2,6 @@
 
 import SocketConnectionNotice from "@/components/SocketConnectionNotice";
 import { APP_VERSION, LICENSE_URL, REPO_URL } from "@/lib/app-meta";
-import { GrowthStarButton } from "@/components/growth/GrowthStarButton";
 import { UpdateNoticeModal } from "@/components/growth/UpdateNoticeModal";
 import { useAppMeta } from "@/components/growth/use-app-meta";
 import { BugReportModal } from "@/components/growth/BugReportModal";
@@ -28,7 +27,6 @@ import {
 import { useSearchParams, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { employeesHref } from "@/components/workspace-navigation";
 import { useT, useLocale, LOCALES } from "@/lib/i18n";
 import {
   MessageSquare,
@@ -42,47 +40,17 @@ import {
   Settings,
   Eye,
   LogOut,
-  Pencil,
   Users,
   Globe,
   RotateCcw,
   Bug,
   Info,
-  KanbanSquare,
-  AlarmClock,
-  Package,
   ArrowUpCircle,
 } from "lucide-react";
 import type { Socket } from "socket.io-client";
 import { EventBus, setPendingChannelData, type PendingChannelData } from "@/game/EventBus";
 import { decideChatError } from "./chat-error-dispatch";
 import { initialRoomState, lastRoomKey, reduceRoomState } from "./room-state";
-import {
-  activeReportReleased,
-  decideReportCall,
-  dismissReport,
-  dismissedReportIds,
-  recallReport,
-  reviveDismissedReports,
-  settleReturningNpcs,
-  missedReportArrival,
-  reconcileReportAttempts,
-  releaseUnacquiredReportCalls,
-  reportCallBlocked,
-  reportAckKey,
-  reportsForChannel,
-  reportTarget,
-  npcSignature,
-  type ReportAttempt,
-} from "./npc-report-dispatch";
-import {
-  acknowledgeReport,
-  EMPTY_REPORT_ACK,
-  parseReportAck,
-  serializeReportAck,
-  type ReportAck,
-  type ReportItem,
-} from "@/game/report-queue";
 import { decideContextInvite } from "./context-invite-decision";
 import type { RoomMessage, RoomSummary } from "@/lib/chat-rooms-policy";
 import {
@@ -90,7 +58,6 @@ import {
   keepsPlacementMode,
   placementBroadcastPlan,
 } from "@/game/npc-placement-request";
-import ReportBadge from "@/components/report/ReportBadge";
 import ChatPanel from "@/components/ChatPanel";
 import ConversationPane from "@/components/conversation/ConversationPane";
 import ConversationWorkspace from "@/components/conversation/ConversationWorkspace";
@@ -110,39 +77,10 @@ import PasswordModal from "@/components/PasswordModal";
 import ChannelSettingsModal from "@/components/ChannelSettingsModal";
 import ViewSettingsModal from "@/components/ViewSettingsModal";
 import CliEmployeeHireModal from "@/components/CliEmployeeHireModal";
-import { HERMES_UI_ENABLED } from "@/lib/product-mode";
 
 type CrewUiState = { paused: boolean; asksUsed: number; asksLimit: number };
 import type { NpcMotionConfig } from "@/lib/npc-motion-config";
-import type { ChatTaskDraft } from "@/components/kanban/kanban-view-model";
-import KanbanBoardModal from "@/components/kanban/KanbanBoardModal";
-import { CRON_SOCKET_EVENT } from "@/components/cron/CronPanel";
-import type { PanelBadgeCounts } from "@/components/ChatPanel";
-import { openCardTarget, type OpenCardTarget } from "@/components/kanban/open-card-target";
-import AttentionInboxPanel from "@/components/attention/AttentionInboxPanel";
-import Modal from "@/components/ui/Modal";
 import MinutesModal from "@/components/MinutesModal";
-import CronModal from "@/components/cron/CronModal";
-import ArtifactsModal from "@/components/artifacts/ArtifactsModal";
-import type { SourceTarget } from "@/components/artifacts/artifact-view-model";
-import { createArtifactsApi } from "@/components/artifacts/artifacts-api";
-import type { TaskDrawerArtifacts } from "@/components/kanban/TaskDrawer";
-import {
-  INITIAL_ARTIFACTS_MODAL,
-  nextArtifactChips,
-  planSourceNavigation,
-  reduceArtifactsModal,
-  type ArtifactChip,
-  type ArtifactSocketEvent,
-} from "./artifact-entry";
-import {
-  EMPTY_NPC_WORKING,
-  parseNpcWorkingPayload,
-  reduceNpcWorking,
-  workingNpcCounts,
-  workingNpcIds,
-  type NpcWorkingMap,
-} from "./npc-working-state";
 import { getLocalizedErrorMessage, getLocalizedMessage } from "@/lib/i18n/error-codes";
 import { mentionSkipI18nKey } from "@/components/meeting-room/mention-skip-notice";
 import type { MentionSkipReason } from "@/lib/conversation/floor-controller";
@@ -209,12 +147,6 @@ interface ChannelInfo {
   isPublic: boolean;
   isMember?: boolean;
   isOwner?: boolean;
-  hasGateway: boolean;
-  gatewayConfig?: {
-    gatewayId?: string | null;
-    url?: string | null;
-    token?: string | null;
-  } | null;
 }
 
 interface ChannelPlayerSummary {
@@ -262,13 +194,6 @@ export default function GamePage({ onFatal }: GamePageClientProps = {}) {
   );
 }
 
-function withoutNpc(set: ReadonlySet<string>, npcId: string): ReadonlySet<string> {
-  if (!set.has(npcId)) return set;
-  const next = new Set(set);
-  next.delete(npcId);
-  return next;
-}
-
 function GamePageInner({ onFatal }: GamePageClientProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -298,51 +223,8 @@ function GamePageInner({ onFatal }: GamePageClientProps) {
   const [showBugReport, setShowBugReport] = useState(false);
   const surveyPrompt = useSurveyPrompt(appMeta.feedbackUrl);
   useEffect(() => installErrorCapture(), []);
-  // 칸반 보드(T8). `kanbanRefreshTick` 은 `kanban:event` 마다 오르고, 모달이 디바운스해 재조회한다.
-  const [showKanban, setShowKanban] = useState(false);
-  const [chatTaskDraft, setChatTaskDraft] = useState<
-    (ChatTaskDraft & { channelId: string; seq: number }) | null
-  >(null);
-  useEffect(() => {
-    // crew-office: 칸반은 Hermes 기능이라 3D 보드를 눌러도 열지 않는다(product-mode.ts).
-    if (!HERMES_UI_ENABLED) return;
-    const open = () => setShowKanban(true);
-    EventBus.on("kanban:open", open);
-    return () => {
-      EventBus.off("kanban:open", open);
-    };
-  }, []);
-  const [kanbanRefreshTick, setKanbanRefreshTick] = useState(0);
-  // 직원 대화창 탭의 미확인 배지(T6)와 그 재계산 신호(`cron:event` 마다 오른다).
-  const [panelBadges, setPanelBadges] = useState<PanelBadgeCounts | null>(null);
-  const [panelBadgeTick, setPanelBadgeTick] = useState(0);
-  // 카드를 누른 **그 순간** 보드가 열려 있었는지 — 콜백을 다시 만들지 않고 보기 위해 ref 로 둔다.
-  const showKanbanRef = useRef(showKanban);
-  useEffect(() => {
-    showKanbanRef.current = showKanban;
-  }, [showKanban]);
-  // 방 알림의 "카드 열기"(R29)·결과물의 "출처로 이동"·직원 대화창의 카드 탭(T6) — 이 카드의
-  // 상세를 편다. 누를 당시 보드가 닫혀 있었으면 `initialTaskId`(마운트 때 읽힌다), 열려 있었으면
-  // `focusRequest` 의 `seq` 를 올린다(`openCardTarget`).
-  const [kanbanCard, setKanbanCard] = useState<OpenCardTarget | null>(null);
-  // 방 알림의 "프로젝트로 등록" — 회의실에 들어가지 않고도 그 회의록(후속 업무 등록 화면)을 연다.
+  // 방 알림의 "회의록 보기" — 회의실에 들어가지 않고도 그 회의록을 연다.
   const [noticeMinutesId, setNoticeMinutesId] = useState<string | null>(null);
-  // 판단 모음 — 승인·검토·막힘처럼 사람이 답해야 하는 것. 헤더 버튼과 승인 요청 알림이 연다.
-  // 이 화면이 없으면 회의에서 등록한 카드는 승인 대기(`blocked`)에 영영 머문다.
-  const [showAttention, setShowAttention] = useState(false);
-  // 채널 크론 화면(T10, R15). "이력 열기"(R30) 는 그 잡의 실행 이력으로 연다.
-  const [showCron, setShowCron] = useState(false);
-  const [cronInitialJobId, setCronInitialJobId] = useState<string | null>(null);
-  // 채널 결과물 모달. 열린 동안 `artifact:event` 마다 tick 이 오르고 마지막 사건을 모달에 넘긴다
-  // (닫으면 비운다 — `reduceArtifactsModal`).
-  const [artifactsModal, dispatchArtifactsModal] = useReducer(
-    reduceArtifactsModal,
-    INITIAL_ARTIFACTS_MODAL,
-  );
-  // 지금 대화 중인 NPC 가 채팅에서 저장한 결과물 — 대화 NPC 가 바뀌면 비운다.
-  const [npcArtifactChips, setNpcArtifactChips] = useState<ArtifactChip[]>([]);
-  // 맵의 "작업 중"(R27). 소켓의 `npc:working` 만 담는다 — 낙관적 갱신 없음(R26).
-  const [npcWorking, setNpcWorking] = useState<NpcWorkingMap>(EMPTY_NPC_WORKING);
   const meetingEntry = useMeetingEntry(socket, channelId);
   const mode = ["joining", "joined"].includes(meetingEntry.state.status) ? "meeting" : "office";
   // Map rendering needs only placed NPC identity and appearance.
@@ -370,31 +252,12 @@ function GamePageInner({ onFatal }: GamePageClientProps) {
   // NPC dialog state — all managed here, ChatPanel is pure display
   const [npcActivityKey, setNpcActivityKey] = useState<string | null>(null);
   const [dialogNpc, setDialogNpc] = useState<{ npcId: string; npcName: string } | null>(null);
-  // 보고 큐 — 사무실 알림에서 파생한다. 확인 지점만 브라우저에 남긴다(`reportAckKey`).
-  const [reportAck, setReportAck] = useState<ReportAck>(EMPTY_REPORT_ACK);
-  // 지금 전하러 오는(또는 와서 전하는) 보고. 직원이 아니라 보고 건으로 추적한다 — 같은 직원의
-  // 다른 보고가 시간순 차례를 새치기하지 않게.
-  const [reportingMessageId, setReportingMessageId] = useState<string | null>(null);
-  // 보고하러 와서 열린 대화창이 맨 위에 보여 줄 보고.
-  const [dialogReport, setDialogReport] = useState<ReportItem | null>(null);
-  // 시도 기록(ref)이 바뀐 것을 화면에 알리는 버전, 마지막 확인 시각, 접힌 보고 되살리기용 시계.
-  const [reportAttemptsVersion, setReportAttemptsVersion] = useState(0);
-  const lastReportAckAtRef = useRef<number | null>(null);
-  // 복귀시켜 자리로 돌아가는 중인 직원. 도착할 때까지 보고 호출 후보가 아니다.
-  const returningNpcsRef = useRef<ReadonlySet<string>>(new Set());
-  const [reportClock, setReportClock] = useState(0);
-  const reportAttemptsRef = useRef<ReportAttempt[]>([]);
   // 대화 목록에 올라가는 직원별 DM 한 줄. 방과 달리 서버가 밀어 주지 않으므로 필요할 때 묻는다.
   const [dmThreads, setDmThreads] = useState<DmThread[]>([]);
   // Keep ref in sync so socket listeners can read current value without stale closure
   useEffect(() => {
     dialogNpcRef.current = dialogNpc;
   }, [dialogNpc]);
-  // 결과물 칩은 그 대화의 것이다 — 대화 NPC 가 바뀌거나 닫히면 비운다.
-  const dialogNpcId = dialogNpc?.npcId ?? null;
-  useEffect(() => {
-    setNpcArtifactChips([]);
-  }, [dialogNpcId]);
   const [npcMessages, setNpcMessages] = useState<NpcChatMessage[]>([]);
   const [isNpcStreaming, setIsNpcStreaming] = useState(false);
   const [chatResponses, dispatchChatResponse] = useReducer(
@@ -410,19 +273,6 @@ function GamePageInner({ onFatal }: GamePageClientProps) {
       EventBus.off("scene-ready", publish);
     };
   }, [chatResponses]);
-  // 작업 중 목록도 같은 길로 맵에 넘긴다. 씬이 늦게 뜨면 `scene-ready` 에서 다시 보낸다.
-  useEffect(() => {
-    const publish = () =>
-      EventBus.emit("npc:working-state", {
-        npcIds: workingNpcIds(npcWorking),
-        counts: workingNpcCounts(npcWorking),
-      });
-    publish();
-    EventBus.on("scene-ready", publish);
-    return () => {
-      EventBus.off("scene-ready", publish);
-    };
-  }, [npcWorking]);
   const [npcSelectList, setNpcSelectList] = useState<{ npcId: string; npcName: string }[] | null>(
     null,
   );
@@ -471,9 +321,8 @@ function GamePageInner({ onFatal }: GamePageClientProps) {
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showChannelSettings, setShowChannelSettings] = useState(false);
   const [showViewSettings, setShowViewSettings] = useState(false);
-  const returnToKanbanRef = useRef(false);
   const [channelSettingsInitialTab, setChannelSettingsInitialTab] = useState<
-    "settings" | "members" | "gateway"
+    "settings" | "members"
   >("settings");
   const [showAboutModal, setShowAboutModal] = useState(false);
   const [meetingMinutesCount, setMeetingMinutesCount] = useState(0);
@@ -528,13 +377,10 @@ function GamePageInner({ onFatal }: GamePageClientProps) {
     onFatal?.();
   }, [onFatal]);
 
-  const openChannelSettings = useCallback(
-    (initialTab: "settings" | "members" | "gateway" = "settings") => {
-      setChannelSettingsInitialTab(initialTab);
-      setShowChannelSettings(true);
-    },
-    [],
-  );
+  const openChannelSettings = useCallback((initialTab: "settings" | "members" = "settings") => {
+    setChannelSettingsInitialTab(initialTab);
+    setShowChannelSettings(true);
+  }, []);
 
   const copyDebugInformation = useCallback(async () => {
     const debugInfo = [
@@ -621,12 +467,6 @@ function GamePageInner({ onFatal }: GamePageClientProps) {
       [{ id, message, timestamp: Date.now(), read: false }, ...prev].slice(0, 20),
     );
   }, []);
-  // 크론 화면·탭의 토스트(R19). id 는 메시지마다 새로 — 알림 목록에 겹치지 않게.
-  const cronToast = useCallback(
-    (message: string) => showToastNotification(`cron-${Date.now()}`, message),
-    [showToastNotification],
-  );
-
   // Socket.io connection (dynamic import to avoid SSR window access)
   useEffect(() => {
     let socketInstance: Socket | null = null;
@@ -680,12 +520,6 @@ function GamePageInner({ onFatal }: GamePageClientProps) {
         setIsNpcStreaming(false);
         setNpcActivityKey(null);
         dispatchChatResponse({ type: "disconnect" });
-        // 응답을 못 받은 보고 호출은 재연결 뒤 다시 부를 수 있게 푼다.
-        const released = releaseUnacquiredReportCalls(reportAttemptsRef.current);
-        if (released !== reportAttemptsRef.current) {
-          reportAttemptsRef.current = [...released];
-          setReportAttemptsVersion((v) => v + 1);
-        }
         setNpcMessages((previous) => previous.filter((message) => !message.responseTransient));
         // 서버의 openRooms 는 소켓별 상태다 — 끊기면 비므로 다시 열어야 한다.
         openedRoomRef.current = null;
@@ -1321,9 +1155,6 @@ function GamePageInner({ onFatal }: GamePageClientProps) {
       // Auto-open dialog when NPC arrives — preserve existing messages (don't resetDialog)
       if (data.npcName && !fromMapChat) {
         const nextDialogNpc = { npcId: data.npcId, npcName: data.npcName };
-        // 보고하러 온 직원이면 대화창 맨 위에 그 보고를 띄운다.
-        const report = reportingItemRef.current;
-        setDialogReport(report && report.npcId === data.npcId ? report : null);
         dialogNpcRef.current = nextDialogNpc;
         setDialogNpc(nextDialogNpc);
         EventBus.emit("dialog:open");
@@ -1428,23 +1259,6 @@ function GamePageInner({ onFatal }: GamePageClientProps) {
     },
     [channelNpcs, closeRosterMenus],
   );
-
-  const gatewayId = channel?.gatewayConfig?.gatewayId ?? null;
-
-  const openProfileSettings = useCallback(() => {
-    if (!gatewayId) return;
-    const returnTo = `${window.location.pathname}${window.location.search}`;
-    setContextMenu(null);
-    closeRosterMenus();
-    router.push(employeesHref(gatewayId, { returnTo }));
-  }, [closeRosterMenus, gatewayId, router]);
-
-  const handleHireNpc = useCallback(() => {
-    if (!gatewayId) return;
-    const returnTo = `${window.location.pathname}${window.location.search}`;
-    closeRosterMenus();
-    router.push(employeesHref(gatewayId, { create: true, returnTo }));
-  }, [closeRosterMenus, gatewayId, router]);
 
   const handleResetNpcChatById = useCallback(
     (npcId: string) => {
@@ -2040,447 +1854,6 @@ function GamePageInner({ onFatal }: GamePageClientProps) {
     };
   }, [socket, refreshNpcLists, showToastNotification, t]);
 
-  /**
-   * 칸반 사건(`kanban:event`)은 이 채널의 것만 세어 모달에 재조회 신호를 준다(R26).
-   * 모달이 닫혀 있어도 세지만, 여는 순간 어차피 처음부터 읽으므로 누적은 무해하다.
-   */
-  useEffect(() => {
-    if (!socket || !channelId) return;
-    const onKanbanEvent = (data: { channelId?: string }) => {
-      if (data?.channelId && data.channelId !== channelId) return;
-      setKanbanRefreshTick((n) => n + 1);
-    };
-    socket.on("kanban:event", onKanbanEvent);
-    return () => {
-      socket.off("kanban:event", onKanbanEvent);
-    };
-  }, [socket, channelId]);
-
-  /**
-   * 직원 대화창 탭의 미확인 배지(T6) — 대화창을 열 때와 기존 `kanban:event`·`cron:event` 가
-   * 올 때만 다시 센다. **폴링하지 않는다**: 이 조회는 서버에서 Hermes 보드를 읽는다.
-   */
-  useEffect(() => {
-    if (!socket || !channelId) return;
-    const bump = () => setPanelBadgeTick((n) => n + 1);
-    socket.on(CRON_SOCKET_EVENT, bump);
-    return () => {
-      socket.off(CRON_SOCKET_EVENT, bump);
-    };
-  }, [socket, channelId]);
-  useEffect(() => {
-    if (!channelId || !dialogNpcId) {
-      setPanelBadges(null);
-      return;
-    }
-    let alive = true;
-    fetch(
-      `/api/channels/${encodeURIComponent(channelId)}/npcs/${encodeURIComponent(dialogNpcId)}/panel-reads`,
-    )
-      .then((res) => (res.ok ? (res.json() as Promise<PanelBadgeCounts>) : null))
-      .then((badges) => {
-        if (alive) setPanelBadges(badges);
-      })
-      .catch(() => {
-        // 배지는 "모르면 없다" 가 정답이다 — 실패를 화면에 올리지 않는다.
-        if (alive) setPanelBadges(null);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [channelId, dialogNpcId, kanbanRefreshTick, panelBadgeTick]);
-  /** 탭을 열었다 — 그 배지를 먼저 0 으로 만들고(사용자가 기다리지 않게) 기록을 보낸다. */
-  const markPanelTabSeen = useCallback(
-    (tab: "cron" | "cards") => {
-      if (!channelId || !dialogNpcId) return;
-      setPanelBadges((prev) => (prev ? { ...prev, [tab]: 0 } : prev));
-      void fetch(
-        `/api/channels/${encodeURIComponent(channelId)}/npcs/${encodeURIComponent(dialogNpcId)}/panel-reads`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ tab }),
-        },
-      ).catch(() => {
-        // 기록에 실패하면 다음 조회에서 배지가 되살아난다 — 조용히 넘긴다.
-      });
-    },
-    [channelId, dialogNpcId],
-  );
-
-  /**
-   * 결과물 사건(`artifact:event`) — 이 채널 것만 모달 상태로 접고(마지막 사건은 삭제·새 버전
-   * 반영용), 열린 NPC 대화에서 저장된 것이면 "결과물 저장됨" 칩을 더한다.
-   */
-  useEffect(() => {
-    if (!socket || !channelId) return;
-    const onArtifactEvent = (data: ArtifactSocketEvent) => {
-      if (data?.channelId && data.channelId !== channelId) return;
-      dispatchArtifactsModal({
-        type: "event",
-        kind: data?.event?.kind,
-        artifactId: data?.event?.payload?.artifact_id,
-      });
-      const openNpcId = dialogNpcRef.current?.npcId;
-      if (!openNpcId || !data?.event) return;
-      const openProfile = rosterNpcsRef.current.find((npc) => npc.id === openNpcId)?.profile
-        ?.profileName;
-      setNpcArtifactChips((prev) => nextArtifactChips(prev, data, openProfile));
-    };
-    socket.on("artifact:event", onArtifactEvent);
-    return () => {
-      socket.off("artifact:event", onArtifactEvent);
-    };
-  }, [socket, channelId]);
-
-  /**
-   * `npc:working`(R27) — 값이 바뀔 때만 오고, 접속 때 스냅샷이 한 번 온다. 채널이 바뀌면
-   * 비운다: 스냅샷이 새 채널 것으로 다시 오므로 옛 채널의 표시가 남지 않는다.
-   */
-  useEffect(() => {
-    setNpcWorking(EMPTY_NPC_WORKING);
-    if (!socket || !channelId) return;
-    const onWorking = (raw: unknown) => {
-      const payload = parseNpcWorkingPayload(raw);
-      if (!payload) return;
-      setNpcWorking((prev) => reduceNpcWorking(prev, payload));
-    };
-    socket.on("npc:working", onWorking);
-    return () => {
-      socket.off("npc:working", onWorking);
-    };
-  }, [socket, channelId]);
-
-  // 확인 기록을 브라우저에서 되읽는다. 없으면 빈 기록 — 첫 방문에는 쌓인 것을 모두 보고한다.
-  // 옛 문자열 워터마크도 읽는다(`parseReportAck`).
-  useEffect(() => {
-    if (!channelId) return;
-    try {
-      setReportAck(parseReportAck(window.localStorage.getItem(reportAckKey(channelId))));
-    } catch {
-      setReportAck(EMPTY_REPORT_ACK);
-    }
-  }, [channelId]);
-
-  /** 이 보고 **한 건만** 확인한다 — 앞에 있던 다른 직원의 보고는 그대로 남는다. */
-  const acknowledgeReports = useCallback(
-    (item: ReportItem) => {
-      setReportAck((prev) => {
-        const next = acknowledgeReport(prev, item.messageId);
-        lastReportAckAtRef.current = Date.now();
-        if (channelId)
-          try {
-            window.localStorage.setItem(reportAckKey(channelId), serializeReportAck(next));
-          } catch {
-            // 사생활 보호 모드 등으로 막혀도 이 세션 동안은 상태로 유지된다.
-          }
-        return next;
-      });
-    },
-    [channelId],
-  );
-
-  const reportQueue = useMemo(
-    () =>
-      reportsForChannel({
-        rooms: roomState.rooms,
-        messages: roomState.messages,
-        npcs: rosterNpcs,
-        acknowledged: reportAck,
-      }),
-    [roomState.rooms, roomState.messages, rosterNpcs, reportAck],
-  );
-
-  // 방 알림 링크(R29·R30) → 해당 모달을 그 항목으로 연다.
-  //
-  // `showKanbanRef` 는 effect 에서 갱신되므로, **같은 tick 에 보드를 닫고** 이걸 부르면 아직
-  // `true` 로 읽혀 `focusRequest` 로 간다 — 그 사이 모달이 언마운트되면 지목이 사라진다.
-  // 지금 부르는 곳(방 알림·카드 탭·`openArtifactSource`)은 모두 보드를 닫지 않으므로
-  // (kanban 분기는 `closeKanban: false` — `artifact-entry.ts:145`) 그 경로가 없다.
-  // 닫고 여는 호출자를 새로 만들려면 `boardOpen` 을 인자로 받도록 바꿔야 한다.
-  const openNoticeCard = useCallback(
-    (cardId: string) => {
-      setKanbanCard((prev) =>
-        openCardTarget({ boardOpen: showKanbanRef.current, taskId: cardId, prev }),
-      );
-      setShowKanban(true);
-      // 그 카드의 보고는 사용자가 본 것이다 — **그 카드의** 보고만 확인한다.
-      // `cardId` 가 없는 보고(크론 실패)와 섞이지 않도록 빈 id 는 맞추지 않는다.
-      if (cardId)
-        for (const item of reportQueue) if (item.cardId === cardId) acknowledgeReports(item);
-    },
-    [reportQueue, acknowledgeReports],
-  );
-  /**
-   * 보고 호출 — **서버가 아니라 이 브라우저가 쏜다.** `npc:call` 은 `targetPlayerId` 를
-   * 소켓에서 정하므로 자동화 사건에는 걸어갈 대상이 없다. 아무도 접속하지 않았으면
-   * 이동이 생략되고 알림만 방에 남는 것이 옳다.
-   *
-   * 대화창·칸반·크론 모달이 열려 있으면 끼어들지 않는다 — 큐는 그대로 남아 닫으면 이어진다.
-   */
-  const reportSignatures = useMemo(() => {
-    const snapshot = npcMotionSnapshotRef.current;
-    const out: Record<string, string> = {};
-    for (const npc of rosterNpcs) {
-      const motion = npcMotionUi(snapshot, npc.id, npcMoveStates[npc.id], npcCallers[npc.id]);
-      const entry = snapshot?.npcs.find((candidate) => candidate.npcId === npc.id);
-      const atHome = !entry || Math.hypot(entry.x - entry.homeX, entry.y - entry.homeY) <= 2;
-      out[npc.id] = npcSignature(motion.phase, motion.caller, socket?.id, atHome);
-    }
-    return out;
-  }, [rosterNpcs, npcMoveStates, npcCallers, socket?.id]);
-
-  useEffect(() => {
-    if (!socket || !channelId) return;
-    // 내 호출로 오던 직원을 누가 데려갔으면(회의 등) 그 "보냄" 을 거절로 정리한다 — 안 그러면
-    // 보고가 확인될 때까지 영영 다시 부르지 않는다.
-    // 접힌 보고는 다른 보고를 확인했거나 약 10분이 지나면 다시 후보가 된다.
-    const revived = reviveDismissedReports(
-      reportAttemptsRef.current,
-      Date.now(),
-      lastReportAckAtRef.current,
-    );
-    if (revived !== reportAttemptsRef.current) {
-      reportAttemptsRef.current = revived;
-      setReportAttemptsVersion((v) => v + 1);
-    }
-    returningNpcsRef.current = settleReturningNpcs(returningNpcsRef.current, reportSignatures);
-    reportAttemptsRef.current = reconcileReportAttempts(
-      reportAttemptsRef.current,
-      reportSignatures,
-      reportQueue,
-    );
-    // 전하던 보고가 거절로 바뀌었으면(자동 복귀·회의 등) 쥐고 있지 않는다 — 다음 렌더에서
-    // 시간순 규칙으로 다시 고른다.
-    if (activeReportReleased(reportAttemptsRef.current, reportingMessageId)) {
-      setReportingMessageId(null);
-      return;
-    }
-    const blocked = reportCallBlocked({
-      dialogOpen: Boolean(dialogNpc),
-      kanbanOpen: showKanban,
-      cronOpen: showCron,
-      inMeeting: mode === "meeting",
-    });
-    // 도착 신호를 놓친 직원이 내 곁에서 기다리면 대화창을 대신 연다(도착 핸들러와 같은 동작).
-    const missed = missedReportArrival({
-      queue: reportQueue,
-      activeMessageId: reportingMessageId,
-      attempts: reportAttemptsRef.current,
-      signatures: reportSignatures,
-      blocked,
-    });
-    if (missed) {
-      reportAttemptsRef.current = reportAttemptsRef.current.map((a) =>
-        a.messageId === missed.messageId ? { ...a, opened: true } : a,
-      );
-      const nextDialogNpc = { npcId: missed.npcId, npcName: missed.npcName };
-      setDialogReport(missed);
-      dialogNpcRef.current = nextDialogNpc;
-      setDialogNpc(nextDialogNpc);
-      EventBus.emit("dialog:open");
-      EventBus.emit("npc:bubble-clear", { npcId: missed.npcId });
-      socket.emit("npc:history", { npcId: missed.npcId });
-      return;
-    }
-    const next = decideReportCall({
-      queue: reportQueue,
-      activeMessageId: reportingMessageId,
-      attempts: reportAttemptsRef.current,
-      signatures: reportSignatures,
-      blocked,
-      returningNpcIds: returningNpcsRef.current,
-    });
-    if (!next) return;
-    const signature = reportSignatures[next.npcId] ?? "unknown:none";
-    const record = (outcome: ReportAttempt["outcome"]) => {
-      reportAttemptsRef.current = [
-        ...reportAttemptsRef.current.filter((a) => a.messageId !== next.messageId).slice(-49),
-        { messageId: next.messageId, outcome, signature },
-      ];
-      setReportAttemptsVersion((v) => v + 1);
-    };
-    record("sent");
-    setReportingMessageId(next.messageId);
-    socket.emit("npc:call", { channelId, npcId: next.npcId }, (result: unknown) => {
-      // 거절(회의 중·다른 사용자 점유)은 **사용자에게는** 조용히 넘긴다 — 알림도 배지도
-      // 남아 있고, 걸어오지 못했다는 토스트로는 사용자가 할 수 있는 일이 없다. 다만
-      // 흔적까지 지우면 안 된다: 예전에는 이 줄이 없어 거절 코드를 아무도 볼 수 없었고,
-      // "직원이 안 온다" 의 원인을 코드 추론으로만 좁혀야 했다.
-      if (!isNpcCallRejected(result)) return;
-      console.debug("[report] npc:call rejected", {
-        npcId: next.npcId,
-        messageId: next.messageId,
-        signature,
-        error: (result as { error?: unknown })?.error,
-      });
-      // 거절을 기록해 둔다. 그 직원의 상태가 바뀌면 `decideReportCall` 이 다시 후보로 올린다.
-      record("rejected");
-      setReportingMessageId(null);
-    });
-  }, [
-    socket,
-    channelId,
-    reportQueue,
-    reportingMessageId,
-    reportSignatures,
-    reportAttemptsVersion,
-    reportClock,
-    dialogNpc,
-    showKanban,
-    showCron,
-    mode,
-  ]);
-
-  const reportingItem = useMemo(
-    () => reportQueue.find((item) => item.messageId === reportingMessageId) ?? null,
-    [reportQueue, reportingMessageId],
-  );
-  // 도착 핸들러는 마운트 때 한 번 등록되는 effect 안에 있어 ref 로 읽는다.
-  const reportingItemRef = useRef<ReportItem | null>(null);
-  useEffect(() => {
-    reportingItemRef.current = reportingItem;
-  }, [reportingItem]);
-
-  // 보고하러 온 직원과의 대화창을 확인 없이 닫으면 그 보고를 이 세션에서 접고 다음 보고로
-  // 넘긴다. 안 그러면 시도가 "보냄" 으로 남아 큐 전체가 멈춘다.
-  const reportDialogNpcRef = useRef<string | null>(null);
-  useEffect(() => {
-    const prev = reportDialogNpcRef.current;
-    const current = dialogNpc?.npcId ?? null;
-    reportDialogNpcRef.current = current;
-    if (!prev || prev === current) return;
-    setDialogReport(null);
-    if (!reportingItem || prev !== reportingItem.npcId) return;
-    reportAttemptsRef.current = dismissReport(
-      reportAttemptsRef.current,
-      reportingItem.messageId,
-      Date.now(),
-    );
-    setReportAttemptsVersion((v) => v + 1);
-    setReportingMessageId(null);
-  }, [dialogNpc, reportingItem]);
-
-  // 보고 목록의 "접힘" 표시. 시도 기록은 ref 라 바뀔 때 버전을 올려 다시 읽는다.
-  const dismissedReports = useMemo(
-    () => dismissedReportIds(reportAttemptsRef.current),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 버전이 ref 변경을 대신 알린다
-    [reportAttemptsVersion],
-  );
-
-  const reportAttemptsDiagnostics = useMemo(
-    () =>
-      reportAttemptsRef.current
-        .map((a) => `${a.messageId}:${a.outcome}${a.signature ? `@${a.signature}` : ""}`)
-        .join(" "),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 버전이 ref 변경을 대신 알린다
-    [reportAttemptsVersion],
-  );
-
-  /** "다시 부르기" — 접힌 보고를 즉시 후보로 되돌린다. 막힘 규칙은 그대로다. */
-  const recallDismissedReport = useCallback((item: ReportItem) => {
-    reportAttemptsRef.current = recallReport(reportAttemptsRef.current, item.messageId);
-    setReportAttemptsVersion((v) => v + 1);
-  }, []);
-
-  // 접힌 보고가 있을 때만 시계를 돌려 시간 경과 되살리기를 판정한다.
-  useEffect(() => {
-    if (dismissedReports.size === 0) return;
-    const timer = window.setInterval(() => setReportClock((c) => c + 1), 30_000);
-    return () => window.clearInterval(timer);
-  }, [dismissedReports]);
-
-  // 보고가 큐에서 빠지면(확인됨) 다음 보고에 자리를 넘긴다.
-  useEffect(() => {
-    if (reportingMessageId && !reportingItem) setReportingMessageId(null);
-  }, [reportingMessageId, reportingItem]);
-
-  const openNoticeCronJob = useCallback(
-    (jobId: string) => {
-      setCronInitialJobId(jobId);
-      setShowCron(true);
-      // 크론 실패 보고도 여기서 닫힌다 — 그러지 않으면 배지가 영영 남는다.
-      for (const item of reportQueue) if (item.jobId === jobId) acknowledgeReports(item);
-    },
-    [reportQueue, acknowledgeReports],
-  );
-  /** 보고 목록의 "열기" — 그 카드/이력을 열고 **그 보고 한 건만** 확인한다. */
-  const openReport = useCallback(
-    (item: ReportItem) => {
-      const target = reportTarget(item);
-      if (target?.kind === "cron") {
-        setCronInitialJobId(target.jobId);
-        setShowCron(true);
-      } else if (target?.kind === "card") {
-        setKanbanCard((prev) =>
-          openCardTarget({ boardOpen: showKanbanRef.current, taskId: target.cardId, prev }),
-        );
-        setShowKanban(true);
-      }
-      acknowledgeReports(item);
-    },
-    [acknowledgeReports],
-  );
-  const closeKanban = useCallback(() => {
-    setChatTaskDraft(null);
-    setShowKanban(false);
-    setKanbanCard(null);
-  }, []);
-  const closeCron = useCallback(() => {
-    setShowCron(false);
-    setCronInitialJobId(null);
-  }, []);
-  /** 결과물 모달을 연다 — 특정 결과물을 펴거나 카드의 결과물로 거른다(Task 11 의 진입점). */
-  const openArtifacts = useCallback((initial?: { artifactId?: string; taskId?: string }) => {
-    dispatchArtifactsModal({ type: "open", initial });
-  }, []);
-  const closeArtifacts = useCallback(() => {
-    dispatchArtifactsModal({ type: "close" });
-  }, []);
-  const openArtifact = useCallback(
-    (artifactId: string) => openArtifacts({ artifactId }),
-    [openArtifacts],
-  );
-  // 칸반 카드의 결과물 섹션. 결과물 모달은 칸반 위에 뜬다(칸반을 닫지 않는다 — 덮인 동안
-  // 칸반은 Escape 를 무시한다, `covered`). api 객체는 채널이 바뀔 때만 새로 만들고, 사건은
-  // `artifactsRefreshTick` 으로 따로 넘겨 드로어가 디바운스해 다시 읽는다.
-  const kanbanArtifacts = useMemo<TaskDrawerArtifacts | null>(() => {
-    if (!channelId) return null;
-    const api = createArtifactsApi(channelId);
-    return {
-      list: (taskId) => api.list({ taskId }).then((page) => page.artifacts),
-      open: openArtifact,
-    };
-  }, [channelId, openArtifact]);
-  /** "출처로 이동" — 결과물 모달과 도착 화면을 가리는 모달을 닫고 그 카드·대화·크론 작업을 연다. */
-  const openArtifactSource = useCallback(
-    (target: SourceTarget) => {
-      const plan = planSourceNavigation(
-        target,
-        rosterNpcs.map((n) => ({ id: n.id, name: n.name, profileName: n.profile?.profileName })),
-      );
-      // 채널에 그 프로필의 NPC 가 없으면(해고 등) 갈 곳이 없으니 모달을 그대로 둔다.
-      if (!plan) return;
-      closeArtifacts();
-      if (plan.closeKanban) closeKanban();
-      if (plan.closeCron) closeCron();
-      const { open } = plan;
-      if (open.type === "chat") handleSelectNpc(open.npcId, open.npcName);
-      else if (open.type === "kanban") openNoticeCard(open.taskId);
-      else if (open.jobId) openNoticeCronJob(open.jobId);
-      else setShowCron(true);
-    },
-    [
-      rosterNpcs,
-      closeArtifacts,
-      closeKanban,
-      closeCron,
-      handleSelectNpc,
-      openNoticeCard,
-      openNoticeCronJob,
-    ],
-  );
-
   // Spawn set mode coordination
   useEffect(() => {
     if (spawnSetMode) {
@@ -2587,9 +1960,6 @@ function GamePageInner({ onFatal }: GamePageClientProps) {
           "npc:return-home",
           { channelId, npcId },
           (error: Error | null, result?: { ok: boolean; error?: string }) => {
-            // 복귀가 거절되면 직원은 돌아가지 않는다 — 복귀 중 표시를 풀어 다시 부를 수 있게 한다.
-            if (error || !result?.ok)
-              returningNpcsRef.current = withoutNpc(returningNpcsRef.current, npcId);
             if (error || !result?.ok)
               showToastNotification(
                 `npc-return-${npcId}`,
@@ -2604,19 +1974,10 @@ function GamePageInner({ onFatal }: GamePageClientProps) {
           },
         );
       mapChatParticipantsRef.current.dismiss(npcId);
-      // 자리에 닿을 때까지 보고 호출 후보에서 뺀다(`settleReturningNpcs` 가 도착을 확인해 푼다).
-      returningNpcsRef.current = new Set([...returningNpcsRef.current, npcId]);
-      // 보고하러 온 직원을 돌려보냈다 = 그 보고를 받은 것으로 본다(단테 결정 2026-09-21).
-      // 안 그러면 집에 닿는 순간 같은 보고로 다시 불려온다. 방 알림은 남는다.
-      const report = reportingItemRef.current;
-      if (report && report.npcId === npcId) {
-        acknowledgeReports(report);
-        setReportingMessageId(null);
-      }
       setContextMenu(null);
       closeRosterMenus();
     },
-    [socket, channelId, closeRosterMenus, showToastNotification, t, acknowledgeReports],
+    [socket, channelId, closeRosterMenus, showToastNotification, t],
   );
 
   // ESC key to close context menu
@@ -2670,16 +2031,6 @@ function GamePageInner({ onFatal }: GamePageClientProps) {
   );
 
   const npcResponsePhases = npcPresentationPhases(chatResponses);
-  // 크론 화면의 NPC 후보 — 출근부의 active 만, 이름은 프로필 표시명(출근부가 이미 그것이다).
-  const cronNpcs = rosterNpcs
-    .filter((npc) => npc.active)
-    .map((npc) => ({ npcId: npc.id, npcName: npc.name }));
-  // 결과물 모달의 NPC 필터 — 크론과 같은 출근부지만 잠든 NPC 도 넣는다(서버 목록 범위와 같다).
-  const artifactNpcs = rosterNpcs.flatMap((npc) =>
-    npc.profile?.profileName
-      ? [{ npcId: npc.id, npcName: npc.name, profileName: npc.profile.profileName }]
-      : [],
-  );
   const navigatorNpcs: NavigatorNpc[] = rosterNpcs.map((npc) => {
     const motion = npcMotionUi(
       npcMotionSnapshotRef.current,
@@ -2705,7 +2056,6 @@ function GamePageInner({ onFatal }: GamePageClientProps) {
     if (action === "call") handleCallNpcById(npcId);
     else if (action === "return") handleReturnNpc(npcId);
     else if (action === "place") handleMoveNpcById(npcId);
-    else if (action === "profile") openProfileSettings();
     else if (action === "reset-chat") handleResetNpcChatById(npcId);
     else if (action === "sleep") handleSleepNpcById(npcId);
     else if (action === "wake") setNpcActiveById(npcId, true);
@@ -2764,28 +2114,7 @@ function GamePageInner({ onFatal }: GamePageClientProps) {
         avatarFor={avatarFor}
         npcMoveState={dialogMotion.phase}
         onReturnNpc={dialogNpc && dialogMotion.caller === socket?.id ? handleReturnNpc : undefined}
-        dialogReport={dialogReport}
-        cron={HERMES_UI_ENABLED && channelId ? { channelId, socket, onToast: cronToast } : null}
-        onOpenNoticeCard={openNoticeCard}
-        onOpenNoticeCronJob={openNoticeCronJob}
-        onOpenNoticeApproval={() => setShowAttention(true)}
         onOpenNoticeMinutes={setNoticeMinutesId}
-        badges={panelBadges}
-        onMarkSeen={markPanelTabSeen}
-        cardsRefreshTick={kanbanRefreshTick}
-        onOpenAssignedCard={openNoticeCard}
-        onCreateTaskFromChat={
-          HERMES_UI_ENABLED
-            ? (draft) => {
-                if (!channelId) return;
-                setChatTaskDraft({ ...draft, channelId, seq: Date.now() });
-                setKanbanCard(null);
-                setShowKanban(true);
-              }
-            : undefined
-        }
-        npcArtifactChips={npcArtifactChips}
-        onOpenArtifact={openArtifact}
       />
     </ConversationPane>
   );
@@ -2831,8 +2160,6 @@ function GamePageInner({ onFatal }: GamePageClientProps) {
             onInvitePeople={() => setShowSharePopup(true)}
             onEditSelf={handleEditCharacter}
             onSetStartPosition={isOwner ? handleStartPositionSetting : undefined}
-            onAddNpc={HERMES_UI_ENABLED && isOwner ? handleHireNpc : undefined}
-            addNpcDisabled={!gatewayId}
             onHireCliEmployee={isOwner ? () => setShowCliHire(true) : undefined}
             crewState={crewState}
             onToggleCrewPause={
@@ -2989,36 +2316,6 @@ function GamePageInner({ onFatal }: GamePageClientProps) {
 
         {/* Right: grouped controls */}
         <div className="header-controls">
-          {/* Gateway status — crew-office 는 Hermes 게이트웨이를 쓰지 않는다(product-mode.ts). */}
-          {HERMES_UI_ENABLED &&
-            (channel?.hasGateway ? (
-              <button
-                onClick={() => openChannelSettings("gateway")}
-                title={t(channel?.hasGateway ? "game.aiGateway" : "game.gatewayConnect")}
-                aria-label={t(channel?.hasGateway ? "game.aiGateway" : "game.gatewayConnect")}
-                className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-sky-500/10 border border-sky-400/20 text-caption text-sky-700 hover:bg-sky-500/20"
-              >
-                <span className="w-2 h-2 rounded-full bg-sky-300" />
-                <span className="header-full-label">{t("game.aiGateway")}</span>
-                <span className="header-mobile-label" aria-hidden="true">
-                  AI
-                </span>
-              </button>
-            ) : (
-              <button
-                onClick={() => openChannelSettings("gateway")}
-                title={t(channel?.hasGateway ? "game.aiGateway" : "game.gatewayConnect")}
-                aria-label={t(channel?.hasGateway ? "game.aiGateway" : "game.gatewayConnect")}
-                className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-amber-500/10 border border-amber-400/20 text-caption text-amber-700 hover:bg-amber-500/20"
-              >
-                <span className="w-2 h-2 rounded-full bg-amber-300" />
-                <span className="header-full-label">{t("game.gatewayConnect")}</span>
-                <span className="header-mobile-label" aria-hidden="true">
-                  AI +
-                </span>
-              </button>
-            ))}
-
           {/* Counts remain in the header; the full roster now lives in the workspace navigator. */}
           <div
             className="header-roster-buttons flex items-center gap-1.5"
@@ -3044,41 +2341,7 @@ function GamePageInner({ onFatal }: GamePageClientProps) {
                 NPC {rosterNpcs.filter((npc) => npc.active).length}
               </span>
             </span>
-            {/* 보고 큐 진단 — 이 큐의 결함은 화면으로만 드러나고 console.debug 는 자동화 도구에
-                잡히지 않는다. 실측에서 DOM 으로 상태를 읽는다(값은 id·상태뿐, 내용 없음). */}
-            <span
-              hidden
-              data-testid="report-diagnostics"
-              data-active={reportingMessageId ?? ""}
-              data-attempts={reportAttemptsDiagnostics}
-              data-returning={[...returningNpcsRef.current].join(",")}
-            />
-            {HERMES_UI_ENABLED && (
-              <ReportBadge
-                queue={reportQueue}
-                current={reportingItem}
-                dismissedIds={dismissedReports}
-                onOpen={openReport}
-                onRecall={recallDismissedReport}
-              />
-            )}
           </div>
-
-          {HERMES_UI_ENABLED && (
-            <button
-              type="button"
-              data-testid="attention-entry"
-              onClick={() => setShowAttention(true)}
-              title={t("attention.title")}
-              aria-label={t("attention.title")}
-              className="flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-caption font-semibold text-text-secondary hover:bg-surface-raised"
-            >
-              <span className="header-full-label">{t("attention.title")}</span>
-              <span className="header-mobile-label" aria-hidden="true">
-                !
-              </span>
-            </button>
-          )}
 
           {/* 회의실 입장 — 회의 화면에서는 숨긴다. 나가는 버튼은 맵 위(ThreeGame)에 있다. */}
           {mode === "office" && (
@@ -3095,50 +2358,6 @@ function GamePageInner({ onFatal }: GamePageClientProps) {
                 {meetingMinutesCount}
               </span>
             </button>
-          )}
-
-          {/* 칸반·크론·결과물·GitHub Star — Hermes 기능과 업스트림 홍보라 crew-office 에서는 숨긴다. */}
-          {HERMES_UI_ENABLED && (
-            <>
-              {/* Kanban board (T8) — 옛 태스크 보드 버튼 자리 */}
-              <button
-                onClick={() => setShowKanban(true)}
-                title={t("kanban.title")}
-                aria-label={t("kanban.title")}
-                className="flex items-center gap-1 px-2.5 py-1 bg-primary/80 hover:bg-primary text-white rounded-md text-caption font-semibold"
-              >
-                <KanbanSquare className="w-3 h-3" />
-                <span className="header-full-label">{t("kanban.open")}</span>
-              </button>
-
-              {/* 채널 크론 화면 (T10, R15) */}
-              <button
-                onClick={() => setShowCron(true)}
-                title={t("cron.title")}
-                aria-label={t("cron.title")}
-                className="flex items-center gap-1 px-2.5 py-1 bg-primary/80 hover:bg-primary text-white rounded-md text-caption font-semibold"
-              >
-                <AlarmClock className="w-3 h-3" />
-                <span className="header-full-label">{t("cron.open")}</span>
-              </button>
-
-              {/* 채널 결과물 */}
-              <button
-                onClick={() => openArtifacts()}
-                title={t("artifacts.title")}
-                aria-label={t("artifacts.title")}
-                className="flex items-center gap-1 px-2.5 py-1 bg-primary/80 hover:bg-primary text-white rounded-md text-caption font-semibold"
-              >
-                <Package className="w-3 h-3" />
-                <span className="header-full-label">{t("artifacts.open")}</span>
-              </button>
-
-              <GrowthStarButton
-                stars={appMeta.stars}
-                clicked={appMeta.starClicked}
-                onClick={appMeta.markStarClicked}
-              />
-            </>
           )}
 
           {/* Separator */}
@@ -3508,23 +2727,6 @@ function GamePageInner({ onFatal }: GamePageClientProps) {
         </div>
       )}
 
-      {showAttention && channelId && (
-        <Modal open onClose={() => setShowAttention(false)} title={t("attention.title")} size="lg">
-          <Modal.Body>
-            <AttentionInboxPanel
-              channelId={channelId}
-              onOpenCard={(taskId) => {
-                setShowAttention(false);
-                openNoticeCard(taskId);
-              }}
-              onOpenCronJob={(jobId) => {
-                setShowAttention(false);
-                openNoticeCronJob(jobId);
-              }}
-            />
-          </Modal.Body>
-        </Modal>
-      )}
       {noticeMinutesId && channelId && (
         <MinutesModal
           channelId={channelId}
@@ -3533,54 +2735,6 @@ function GamePageInner({ onFatal }: GamePageClientProps) {
           onClose={() => setNoticeMinutesId(null)}
         />
       )}
-      {showKanban && channelId && (
-        <KanbanBoardModal
-          key={`${channelId}:${chatTaskDraft?.seq ?? "board"}`}
-          initialCreateDraft={chatTaskDraft?.channelId === channelId ? chatTaskDraft : undefined}
-          channelId={channelId}
-          refreshTick={kanbanRefreshTick}
-          initialTaskId={kanbanCard?.initialTaskId ?? null}
-          focusRequest={kanbanCard?.focusRequest ?? null}
-          artifacts={kanbanArtifacts}
-          artifactsRefreshTick={artifactsModal.eventSeq}
-          covered={artifactsModal.show}
-          onClose={closeKanban}
-          onConnectGateway={
-            isOwner
-              ? () => {
-                  returnToKanbanRef.current = true;
-                  setShowKanban(false);
-                  openChannelSettings("gateway");
-                }
-              : undefined
-          }
-        />
-      )}
-
-      {showCron && channelId && (
-        <CronModal
-          channelId={channelId}
-          npcs={cronNpcs}
-          socket={socket}
-          onToast={cronToast}
-          initialJobId={cronInitialJobId}
-          onClose={closeCron}
-        />
-      )}
-
-      {artifactsModal.show && channelId && (
-        <ArtifactsModal
-          channelId={channelId}
-          npcs={artifactNpcs}
-          refreshTick={artifactsModal.refreshTick}
-          lastEvent={artifactsModal.lastEvent}
-          initialArtifactId={artifactsModal.initial?.artifactId ?? null}
-          initialTaskId={artifactsModal.initial?.taskId ?? null}
-          onOpenSource={openArtifactSource}
-          onClose={closeArtifacts}
-        />
-      )}
-
       {showPasswordModal && channelId && (
         <PasswordModal
           channelName={channel?.name || t("channels.privateChannel")}
@@ -3606,43 +2760,9 @@ function GamePageInner({ onFatal }: GamePageClientProps) {
           inviteCode={channel.inviteCode}
           motionConfig={channel.motionConfig}
           initialTab={channelSettingsInitialTab}
-          onClose={() => {
-            setShowChannelSettings(false);
-            if (returnToKanbanRef.current) {
-              returnToKanbanRef.current = false;
-              setShowKanban(true);
-            }
-          }}
+          onClose={() => setShowChannelSettings(false)}
           onUpdated={(data) => {
-            if (data.gatewayConfig) void refreshNpcLists();
-            if (
-              returnToKanbanRef.current &&
-              (data.gatewayConfig?.gatewayId || data.gatewayConfig?.url)
-            ) {
-              returnToKanbanRef.current = false;
-              setShowChannelSettings(false);
-              setShowKanban(true);
-            }
-            setChannel((prev) => {
-              if (!prev) return prev;
-              return {
-                ...prev,
-                ...data,
-                hasGateway: data.gatewayConfig
-                  ? Boolean(
-                      (typeof data.gatewayConfig.gatewayId === "string" &&
-                        data.gatewayConfig.gatewayId.trim()) ||
-                      (typeof data.gatewayConfig.url === "string" &&
-                        data.gatewayConfig.url.trim()) ||
-                      prev.gatewayConfig?.gatewayId ||
-                      prev.gatewayConfig?.url,
-                    )
-                  : prev.hasGateway,
-                gatewayConfig: data.gatewayConfig
-                  ? { ...(prev.gatewayConfig || {}), ...data.gatewayConfig }
-                  : prev.gatewayConfig,
-              };
-            });
+            setChannel((prev) => (prev ? { ...prev, ...data } : prev));
           }}
         />
       )}
@@ -3781,17 +2901,6 @@ function GamePageInner({ onFatal }: GamePageClientProps) {
                         <Footprints className="w-3.5 h-3.5 inline mr-1" />
                         {t("npc.move")}
                       </button>
-                      {HERMES_UI_ENABLED && (
-                        <button
-                          onClick={openProfileSettings}
-                          disabled={!gatewayId}
-                          title={!gatewayId ? t("game.roster.needsGateway") : undefined}
-                          className="w-full text-left px-3 py-2 text-body text-text hover:bg-surface-raised disabled:text-text-dim disabled:cursor-not-allowed"
-                        >
-                          <Pencil className="w-3.5 h-3.5 inline mr-1" />
-                          {t("npc.profileSettings")}
-                        </button>
-                      )}
                     </>
                   )}
                   <button

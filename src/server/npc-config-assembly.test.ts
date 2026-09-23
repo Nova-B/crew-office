@@ -17,10 +17,9 @@ setupThrowawaySqlite("npc-config-assembly-test");
  */
 test("고용된 NPC 는 agent_config 가 비어도 회의 규약을 받는다", async () => {
   const { getNpcConfigsForChannel } = await import("./socket-handlers");
-  const { hireGatewayProfilesIntoChannel } = await import("@/lib/npc-roster");
 
-  const { channelId, gatewayId } = await seedChannelWithProfiles({ profiles: 1 });
-  await hireGatewayProfilesIntoChannel(channelId, gatewayId);
+  // crew-office: Hermes 고용 경로가 사라져 CLI 직원 씨앗을 직접 심는다(agent_config 는 빈 값).
+  const { channelId } = await seedChannelWithProfiles({ adapterType: "claude", unplaced: 1 });
 
   const [config] = await getNpcConfigsForChannel(channelId);
   assert.ok(config, "고용된 NPC 가 명단에 있어야 한다");
@@ -61,10 +60,9 @@ const EN_CONTRACT = /Response Language Contract/;
 
 test("agent_config 가 없는 직원도 한국어 사용자의 요청이면 한국어 계약을 받는다", async () => {
   const { getNpcConfigsForChannel } = await import("./socket-handlers");
-  const { hireGatewayProfilesIntoChannel } = await import("@/lib/npc-roster");
 
-  const { channelId, gatewayId } = await seedChannelWithProfiles({ profiles: 1 });
-  await hireGatewayProfilesIntoChannel(channelId, gatewayId);
+  // crew-office: Hermes 고용 경로가 사라져 CLI 직원 씨앗을 직접 심는다(agent_config 는 빈 값).
+  const { channelId } = await seedChannelWithProfiles({ adapterType: "claude", unplaced: 1 });
 
   const [config] = await getNpcConfigsForChannel(channelId, "ko");
   assert.match(config.instructions ?? "", KO_CONTRACT);
@@ -117,18 +115,7 @@ test("회의·1:1·방 세 경로가 같은 해석 함수에 요청자 언어를
   assert.match(room, /loadNpcConfigs\(room\.channelId, deps\.locale\)/);
 });
 
-test("옛 대화의 JSON 등록 지시는 폐기하고 현재 확인 화면을 안내한다", async () => {
-  const { resolveNpcInstructions } = await import("./socket-handlers");
-  for (const config of [{}, { meetingProtocol: "사용자 회의 규칙" }]) {
-    const out = resolveNpcInstructions(config, "ko") ?? "";
-    assert.match(out, /json:task/);
-    assert.match(out, /카드로 등록/);
-    assert.match(out, /폐기/);
-    assert.match(out, /Hermes/);
-  }
-});
-
-test("CLI 직원은 agent_config.soul 을 인격 층으로 받고, Hermes 카드 안내는 받지 않는다", async () => {
+test("CLI 직원은 agent_config.soul 을 인격 층으로 받고, 카드 등록 안내는 받지 않는다", async () => {
   const { resolveNpcInstructions } = await import("./socket-handlers");
   const out = resolveNpcInstructions({ soul: "You are Mina." }, "ko", "claude") ?? "";
   assert.match(out, /<persona>\nYou are Mina\.\n<\/persona>/);
@@ -136,9 +123,10 @@ test("CLI 직원은 agent_config.soul 을 인격 층으로 받고, Hermes 카드
   assert.doesNotMatch(out, /task-registration|Hermes/);
 });
 
-test("Hermes 직원은 soul 이 있어도 인격 층을 받지 않는다 — 인격의 정본은 SOUL.md 다", async () => {
+// crew-office: Hermes 칸반 카드 등록 안내(task-registration)는 어떤 직원에게도 싣지 않는다.
+test("CLI 직원이 아니면 soul 이 있어도 인격 층을 받지 않고, 카드 등록 안내도 없다", async () => {
   const { resolveNpcInstructions } = await import("./socket-handlers");
-  const out = resolveNpcInstructions({ soul: "You are Mina." }, "ko", "hermes") ?? "";
+  const out = resolveNpcInstructions({ soul: "You are Mina." }, "ko", "gemini") ?? "";
   assert.doesNotMatch(out, /<persona>/);
-  assert.match(out, /task-registration/);
+  assert.doesNotMatch(out, /task-registration|json:task/);
 });

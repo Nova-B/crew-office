@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { sortRooms, type RoomSummary } from "@/lib/chat-rooms-policy";
 import type { DmThreadEntry } from "@/lib/dm-threads";
 import { useT } from "@/lib/i18n";
-import { HERMES_UI_ENABLED } from "@/lib/product-mode";
 import type { RosterNpc } from "../NpcRoster";
 import ParticipantRow from "./ParticipantRow";
 
@@ -23,8 +22,7 @@ export type NavigatorPlayer = {
   appearance?: unknown;
 };
 
-export type NpcNavigatorAction =
-  "call" | "return" | "place" | "profile" | "reset-chat" | "sleep" | "wake";
+export type NpcNavigatorAction = "call" | "return" | "place" | "reset-chat" | "sleep" | "wake";
 
 type Props = {
   workspaceName: string;
@@ -49,8 +47,6 @@ type Props = {
   onInvitePeople?: () => void;
   onEditSelf?: () => void;
   onSetStartPosition?: () => void;
-  onAddNpc?: () => void;
-  addNpcDisabled?: boolean;
   /** crew-office: Hermes 없이 Claude Code·Codex CLI 직원을 고용한다. 게이트웨이와 무관하게 늘 열린다. */
   onHireCliEmployee?: () => void;
   /** crew-office: CLI 직원 제어 상태. 일시정지 안내는 모두에게, 토글은 소유자에게만 보인다. */
@@ -262,16 +258,6 @@ export default function WorkspaceNavigator(props: Props) {
               >
                 {t("npc.move")}
               </button>
-              {/* crew-office: 프로필 설정은 Hermes 프로필 화면이라 숨긴다(product-mode.ts). */}
-              {HERMES_UI_ENABLED && (
-                <button
-                  role="menuitem"
-                  onClick={() => action("profile")}
-                  className="w-full rounded px-3 py-2 text-left text-sm hover:bg-surface-raised"
-                >
-                  {t("workspace.action.profile")}
-                </button>
-              )}
             </>
           )}
           <button
@@ -318,16 +304,6 @@ export default function WorkspaceNavigator(props: Props) {
             className="rounded-md px-2 py-2 text-xs text-text-secondary hover:bg-surface-raised"
           >
             {t("game.setStartPosition")}
-          </button>
-        )}
-        {props.isOwner && props.onAddNpc && (
-          <button
-            type="button"
-            disabled={props.addNpcDisabled}
-            onClick={props.onAddNpc}
-            className="rounded-md px-2 py-2 text-xs text-primary hover:bg-surface-raised disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {t("game.roster.hire")}
           </button>
         )}
         {props.crewState?.paused && (

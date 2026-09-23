@@ -73,3 +73,28 @@ export function getCrewMessenger(): CrewMessengerCall | undefined {
   const call = messengers[CREW_MESSENGER_KEY];
   return typeof call === "function" ? call : undefined;
 }
+
+// crew-office: 이미 저장된 방 메시지(회의 결과 알림 등)를 그 방에 방송한다. 예전 automation-registry 의
+// 훅에서 방송만 남겼다 — 자동화 폴러는 Hermes 와 함께 걷어냈다. 행은 `appendRoomMessage` 가 쓰고, 이것은
+// 방송만 한다. 소켓 서버가 없으면 조용히 no-op — 행은 DB 에 있으니 방을 열면 보인다.
+type RoomMessageBroadcaster = (roomId: string, message: unknown) => void;
+const ROOM_MESSAGE_KEY = "__crew_office_room_message_broadcaster__";
+const broadcasters = globalThis as typeof globalThis &
+  Record<string, RoomMessageBroadcaster | undefined>;
+
+export function registerRoomMessageBroadcaster(
+  broadcast: RoomMessageBroadcaster | undefined,
+): void {
+  broadcasters[ROOM_MESSAGE_KEY] = broadcast;
+}
+
+/** 방송 실패가 알림을 만든 작업을 실패시키면 안 된다 — 던지지 않는다. */
+export function requestEmitRoomMessage(roomId: string, message: unknown): void {
+  const broadcast = broadcasters[ROOM_MESSAGE_KEY];
+  if (typeof broadcast !== "function") return;
+  try {
+    broadcast(roomId, message);
+  } catch {
+    // 소켓 방송이 깨져도 호출자는 계속 간다.
+  }
+}

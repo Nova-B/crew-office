@@ -1,21 +1,14 @@
 /**
  * 회의 결과 방 알림 — 후속 업무가 나온 회의가 끝나면 사무실 방에 한 줄을 남긴다.
  *
- * 회의는 자동화 사건이 아니다(Hermes 사건 스트림·커서를 거치지 않는다). 그래서 사건 싱크(`ingest`)가
- * 아니라 승인 알림과 같은 길로 낸다: 행은 `appendRoomMessage` 가 쓰고 방송은 `automation-registry` 훅.
+ * 행은 `appendRoomMessage` 가 쓰고 방송은 `rpc-registry` 의 방 메시지 방송 훅이 한다.
  *
- * **여기 함수들은 던지지 않는다.** 알림이 늦게 보이는 것과 회의록이 안 남는 것·등록이 실패하는 것은
- * 무게가 다르다.
+ * **여기 함수들은 던지지 않는다.** 알림이 늦게 보이는 것과 회의록이 안 남는 것은 무게가 다르다.
  */
-import { requestEmitRoomMessage } from "@/lib/automation-registry";
 import { appendRoomMessage, ensureOfficeRoom, getChannelOwnerId } from "@/lib/chat-rooms";
 import type { RoomNotice } from "@/lib/chat-rooms-policy";
-import type {
-  MeetingOutcome,
-  MeetingOutcomeRegistered,
-  MeetingSummaryStatus,
-} from "@/lib/meeting-outcome";
-import { rewriteRoomNotices } from "@/lib/room-notice-rewrite";
+import type { MeetingOutcome, MeetingSummaryStatus } from "@/lib/meeting-outcome";
+import { requestEmitRoomMessage } from "@/lib/rpc-registry";
 
 export type MeetingOutcomeNotice = Extract<RoomNotice, { kind: "meeting_outcome" }>;
 
@@ -75,33 +68,4 @@ export async function announceMeetingOutcome(input: {
   } catch (error) {
     console.warn("[meeting] 회의 결과 알림을 남기지 못했다", { channelId: input.channelId }, error);
   }
-}
-
-/**
- * 등록이 끝나면 **같은 줄**에 결과를 되쓴다 — 렌더러가 회의록을 다시 읽지 않고, 과거 메시지를
- * 스크롤해도 그때의 결과가 보인다. 해소 여부를 클라이언트가 숨기는 것이 아니다.
- */
-export async function markMeetingOutcomeNoticeRegistered(input: {
-  channelId: string;
-  minutesId: string;
-  registered: MeetingOutcomeRegistered;
-}): Promise<void> {
-  await rewriteRoomNotices({
-    channelId: input.channelId,
-    needle: input.minutesId,
-    // LIKE 는 후보만 좁힌다 — 다른 회의 id 의 부분 문자열일 수 있으니 정확히 맞춘다.
-    update: (notice) =>
-      notice.kind === "meeting_outcome" && notice.minutesId === input.minutesId
-        ? {
-            ...notice,
-            resolved: {
-              boardSlug: input.registered.boardSlug,
-              tenant: input.registered.tenant,
-              taskCount: input.registered.taskIds.length,
-              by: input.registered.by,
-              at: input.registered.at,
-            },
-          }
-        : null,
-  });
 }

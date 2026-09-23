@@ -1,14 +1,12 @@
 import { deriveChannelMotionLayout } from "@/lib/channel-motion-layout";
 import { isCreativeStudioMap } from "@/lib/effective-map-spawn";
-// NPC 생성 라우트는 없다. NPC 는 사용자가 만드는 것이 아니라 "게이트웨이의 프로필이
-// 채널에 갖는 자리" 이고, 그 자리는 게이트웨이 연결(hireGatewayProfilesIntoChannel)과
-// 프로필 등록(hireProfileIntoBoundChannels)이 만든다. 여기서 다시 만들 수 있으면
-// 프로필 없는 NPC 나 중복 자리가 생긴다.
+// NPC 생성 라우트는 여기 없다. crew-office 의 직원은 CLI 직원 고용 라우트
+// (`/api/channels/:id/cli-employees`)가 만든다.
 import { NextRequest, NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { db, channelMembers, channels } from "@/db";
 import { getUserId } from "@/lib/internal-rpc";
-import { getGatewayRuntimeStateForChannel } from "@/lib/gateway-resources";
+import { isRetiredNpcAdapter } from "@/lib/cli-employees";
 import { selectChannelNpcs } from "@/lib/npc-projection";
 import { channelSeats } from "@/lib/npc-seating";
 import { seatNumberAt } from "@/lib/seat-assignment";
@@ -69,14 +67,10 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const gatewayState = await getGatewayRuntimeStateForChannel(channelId, {
-      forceRefresh: true,
-    });
-    // Hermes 직원은 유효한 게이트웨이 없이 답할 수 없어 숨긴다. crew-office 의 CLI 직원(프로필 없음)은
-    // 게이트웨이와 무관하게 이 PC 의 CLI 로 일하므로 언제나 보인다.
-    const gatewayValid = gatewayState.status === "valid";
+    // crew-office: Hermes·OpenClaw 는 걷어냈다. 그 어댑터로 남은 옛 직원은 답할 수 없으니 숨긴다
+    // (예전에도 유효한 게이트웨이가 없으면 숨겼다). CLI 직원은 이 PC 의 CLI 로 일하므로 언제나 보인다.
     const list = (await selectChannelNpcs(channelId, { roster })).filter(
-      (npc) => gatewayValid || npc.hermesProfileId === null,
+      (npc) => !isRetiredNpcAdapter(npc.adapterType),
     );
     // roster 는 "고용 명부" 화면이 자리 번호를 보여줘야 한다 — 맵용 기본 응답은 좌석을
     // 계산할 필요가 없으니 여기서만 채널 맵을 한 번 더 읽는다.

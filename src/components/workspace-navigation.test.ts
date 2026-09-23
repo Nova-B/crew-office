@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { WORKSPACE_NAV, employeesHref } from "./workspace-navigation";
+import { WORKSPACE_NAV } from "./workspace-navigation";
 
 test("사이드바는 온보딩 순서대로다 — 내 캐릭터가 먼저, Hermes 화면은 없다", () => {
   // 캐릭터가 없으면 사무실 화면이 캐릭터 화면으로 되돌려 보낸다. "나" 를 먼저 만드는 것이
@@ -26,14 +26,5 @@ test("내 캐릭터가 사이드바에 있다", () => {
   assert.equal(
     WORKSPACE_NAV.some((item) => item.href === "/characters"),
     true,
-  );
-});
-
-test("직원 화면 주소는 게이트웨이와 이어서 할 일을 함께 싣는다", () => {
-  assert.equal(employeesHref("gw-1"), "/profiles?gateway=gw-1");
-  assert.equal(employeesHref("gw-1", { create: true }), "/profiles/new?gateway=gw-1");
-  assert.equal(
-    employeesHref("gw-1", { create: true, returnTo: "/game?channelId=c1&view=x" }),
-    "/profiles/new?gateway=gw-1&returnTo=%2Fgame%3FchannelId%3Dc1%26view%3Dx",
   );
 });

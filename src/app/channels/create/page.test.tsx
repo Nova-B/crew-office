@@ -1,6 +1,5 @@
 import "../../../test-setup/dom";
 
-import { HERMES_UI_ENABLED } from "@/lib/product-mode";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { act } from "react";
@@ -22,10 +21,6 @@ const router: AppRouterInstance = {
   prefetch() {},
   bfcacheId: "test",
 };
-const gateways = [
-  { id: "gw-1", displayName: "First", baseUrl: "https://first.example" },
-  { id: "gw-2", displayName: "Second", baseUrl: "https://second.example" },
-];
 
 async function render(query: string) {
   const calls: Array<{ url: string; body?: Record<string, unknown> }> = [];
@@ -35,11 +30,9 @@ async function render(query: string) {
     const body = typeof init?.body === "string" ? JSON.parse(init.body) : undefined;
     calls.push({ url, body });
     const data =
-      url === "/api/gateways"
-        ? { gateways }
-        : url === "/api/groups"
-          ? { groups: [{ id: "group-1", name: "Group", canCreateChannel: true, role: "owner" }] }
-          : { channel: { id: "channel-1" } };
+      url === "/api/groups"
+        ? { groups: [{ id: "group-1", name: "Group", canCreateChannel: true, role: "owner" }] }
+        : { channel: { id: "channel-1" } };
     return { ok: true, json: async () => data } as Response;
   }) as typeof fetch;
   const el = document.createElement("div");
@@ -70,57 +63,31 @@ async function render(query: string) {
   };
 }
 
-// crew-office: 게이트웨이 항목은 Hermes 화면이라 숨긴다(product-mode.ts). 켜 둘 때만 검사한다.
-test(
-  "authorized gateway prefill connects the created office and warns if removed",
-  { skip: !HERMES_UI_ENABLED && "Hermes UI 가 꺼져 있다(crew-office)" },
-  async () => {
-    const { el, calls, cleanup } = await render("gatewayId=gw-2");
-    try {
-      const select = [...el.querySelectorAll("select")].find((element) =>
-        [...element.options].some((option) => option.value === "gw-2"),
-      );
-      assert.ok(select);
-      assert.equal(select.value, "gw-2");
-      assert.doesNotMatch(el.textContent ?? "", /AI 게이트웨이를 연결하지 않으면/);
-      const name = el.querySelector<HTMLInputElement>('input[maxlength="100"]');
-      assert.ok(name);
-      await act(async () => {
-        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
-        setter?.call(name, "Office");
-        name.dispatchEvent(new Event("input", { bubbles: true }));
-      });
-      await act(async () => {
-        el.querySelector<HTMLFormElement>("form")?.dispatchEvent(
-          new Event("submit", { bubbles: true, cancelable: true }),
-        );
-      });
-      assert.deepEqual(calls.find((call) => call.url === "/api/channels")?.body?.gatewayConfig, {
-        gatewayId: "gw-2",
-      });
-      await act(async () => {
-        const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(select), "value")?.set;
-        setter?.call(select, "gw-1");
-        select.dispatchEvent(new Event("change", { bubbles: true }));
-      });
-      assert.equal(select.value, "gw-1", "user selection must survive the query prefill");
-      const custom = [...el.querySelectorAll("button")].find((button) =>
-        button.textContent?.includes("직접"),
-      );
-      assert.ok(custom);
-      await act(async () => custom.click());
-      assert.match(el.textContent ?? "", /AI 게이트웨이를 연결하지 않으면/);
-    } finally {
-      await cleanup();
-    }
-  },
-);
-
-test("unknown gateway query is ignored", async () => {
-  const { el, cleanup } = await render("gatewayId=unknown");
+// crew-office: AI 게이트웨이 항목은 Hermes 와 함께 걷어냈다 — 채널은 게이트웨이 없이 만들어지고
+// 경고도 띄우지 않는다(직원은 오피스 안에서 CLI 직원으로 고용한다).
+test("채널 생성은 게이트웨이를 묻지도 보내지도 않는다", async () => {
+  const { el, calls, cleanup } = await render("gatewayId=gw-2");
   try {
-    assert.match(el.textContent ?? "", /AI 게이트웨이를 연결하지 않으면/);
-    assert.equal(el.querySelector<HTMLSelectElement>('select option[value="unknown"]'), null);
+    assert.equal(
+      calls.some((call) => call.url.startsWith("/api/gateways")),
+      false,
+    );
+    assert.doesNotMatch(el.textContent ?? "", /AI 게이트웨이를 연결하지 않으면/);
+    const name = el.querySelector<HTMLInputElement>('input[maxlength="100"]');
+    assert.ok(name);
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+      setter?.call(name, "Office");
+      name.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => {
+      el.querySelector<HTMLFormElement>("form")?.dispatchEvent(
+        new Event("submit", { bubbles: true, cancelable: true }),
+      );
+    });
+    const created = calls.find((call) => call.url === "/api/channels");
+    assert.ok(created, "채널 생성 요청이 나가야 한다");
+    assert.equal(created.body?.gatewayConfig, undefined);
   } finally {
     await cleanup();
   }

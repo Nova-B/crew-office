@@ -1,12 +1,11 @@
 import assert from "node:assert/strict";
-import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
 import startupCheck from "./startup-check.js";
 
-const { checkDatabaseReachable, inspectEnvironment, hostSetupHint } = startupCheck;
+const { checkDatabaseReachable, inspectEnvironment } = startupCheck;
 
 /** 이 테스트가 보려는 변수 외에는 전부 채워 둔다 — 무관한 경고가 섞이지 않게. */
 function baseEnv(overrides = {}) {
@@ -121,64 +120,6 @@ test("PostgreSQL 대상인데 URL 이 없으면 찌르지 않고 실패로 알�
   assert.equal(result.ok, false);
   assert.equal(result.target, "postgresql");
   assert.match(result.message, /DATABASE_URL/);
-});
-
-test("Hermes 가 없으면 연결 마법사에서 설치할 수 있다고 알린다(기본 켜짐)", () => {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), "deskrpg-hint-"));
-  assert.match(String(startupCheck.hostSetupHint({ PATH: "" }, home)), /로컬 연결에서 설치/);
-});
-
-test("운영자가 스위치를 꺼 두었으면 켜는 명령을 알린다", () => {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), "deskrpg-hint-"));
-  for (const env of [
-    { DESKRPG_HOST_SETUP_ENABLED: "0" },
-    { DESKRPG_HERMES_INSTALL_ENABLED: "off" },
-  ]) {
-    assert.match(
-      String(startupCheck.hostSetupHint({ ...env, PATH: "" }, home)),
-      /host-setup on --with-install/,
-    );
-  }
-});
-
-test("Hermes 가 이미 있으면 조용하다", () => {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), "deskrpg-hint-"));
-  fs.mkdirSync(path.join(home, ".hermes", "hermes-agent"), { recursive: true });
-  assert.equal(startupCheck.hostSetupHint({}, home), null);
-});
-
-test("HERMES_HOME 이 있는 결합 이미지에서는 Hermes 설치 안내를 내지 않는다", () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-home-"));
-  const emptyHome = fs.mkdtempSync(path.join(os.tmpdir(), "user-home-"));
-  try {
-    assert.equal(hostSetupHint({ HERMES_HOME: dir, PATH: "" }, emptyHome), null);
-  } finally {
-    fs.rmSync(dir, { recursive: true, force: true });
-    fs.rmSync(emptyHome, { recursive: true, force: true });
-  }
-});
-
-test("PATH 에 hermes 가 있으면 설치 안내를 내지 않는다", () => {
-  const binDir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-bin-"));
-  const emptyHome = fs.mkdtempSync(path.join(os.tmpdir(), "user-home-"));
-  fs.writeFileSync(path.join(binDir, "hermes"), "#!/bin/sh\n");
-  try {
-    assert.equal(hostSetupHint({ PATH: binDir }, emptyHome), null);
-  } finally {
-    fs.rmSync(binDir, { recursive: true, force: true });
-    fs.rmSync(emptyHome, { recursive: true, force: true });
-  }
-});
-
-test("Hermes 가 어디에도 없으면 설치 안내를 낸다", () => {
-  const emptyHome = fs.mkdtempSync(path.join(os.tmpdir(), "user-home-"));
-  const missing = path.join(emptyHome, "nope");
-  try {
-    const hint = hostSetupHint({ HERMES_HOME: missing, PATH: missing }, emptyHome);
-    assert.match(String(hint), /Hermes 가 없습니다/);
-  } finally {
-    fs.rmSync(emptyHome, { recursive: true, force: true });
-  }
 });
 
 test("자리표시자 JWT_SECRET 은 프로덕션에서 기동을 막는다", () => {

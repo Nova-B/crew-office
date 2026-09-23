@@ -1,4 +1,4 @@
-import { streamDiagnostic } from "@/lib/hermes/stream-diagnostics";
+import { streamDiagnostic } from "@/lib/stream-diagnostics";
 import type { ChatResponse } from "@/lib/chat-response";
 
 const terminal = (status: ChatResponse["status"]) =>

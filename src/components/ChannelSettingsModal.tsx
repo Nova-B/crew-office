@@ -1,5 +1,4 @@
 "use client";
-import { HERMES_UI_ENABLED } from "@/lib/product-mode";
 import { useCallback, useEffect, useState } from "react";
 import {
   DEFAULT_NPC_MOTION,
@@ -10,12 +9,11 @@ import {
   tilesPerSecond,
   type NpcMotionConfig,
 } from "@/lib/npc-motion-config";
-import Link from "next/link";
 import { useT } from "@/lib/i18n";
 import { getLocalizedErrorMessage } from "@/lib/i18n/error-codes";
-import GatewayStatusCard, { type GatewayStatus } from "@/components/gateway/GatewayStatusCard";
 
-type ChannelSettingsTab = "settings" | "members" | "gateway";
+// crew-office: Hermes 게이트웨이("AI 연결") 탭은 Hermes 와 함께 걷어냈다.
+type ChannelSettingsTab = "settings" | "members";
 
 interface ChannelSettingsModalProps {
   channelId: string;
@@ -32,13 +30,6 @@ interface ChannelSettingsModalProps {
     description?: string | null;
     isPublic?: boolean;
     motionConfig?: NpcMotionConfig;
-    gatewayConfig?: {
-      gatewayId?: string | null;
-      url?: string | null;
-      // 토큰은 서버가 돌려주지 않는다(하드 게이트 2) — 저장 여부만 안다.
-      hasToken?: boolean;
-      canEditCredentials?: boolean;
-    };
   }) => void;
 }
 
@@ -48,20 +39,6 @@ interface Member {
   role: string;
   joinedAt: string;
   isOnline: boolean;
-}
-
-interface GatewayConnectionState {
-  status: GatewayStatus;
-  error?: string | null;
-}
-
-interface AccessibleGatewayOption {
-  id: string;
-  displayName: string | null;
-  baseUrl: string;
-  canEditCredentials: boolean;
-  isOwner: boolean;
-  shareRole: string | null;
 }
 
 export default function ChannelSettingsModal({
@@ -76,9 +53,7 @@ export default function ChannelSettingsModal({
   onUpdated,
 }: ChannelSettingsModalProps) {
   const t = useT();
-  const [tab, setTab] = useState<ChannelSettingsTab>(
-    !HERMES_UI_ENABLED && initialTab === "gateway" ? "settings" : initialTab,
-  );
+  const [tab, setTab] = useState<ChannelSettingsTab>(initialTab);
   const [name, setName] = useState(channelName);
   const [description, setDescription] = useState(channelDescription || "");
   const [visibility, setVisibility] = useState(isPublic);
@@ -94,28 +69,6 @@ export default function ChannelSettingsModal({
   const [membersError, setMembersError] = useState("");
   const [kickingUserId, setKickingUserId] = useState<string | null>(null);
   const [confirmKick, setConfirmKick] = useState<Member | null>(null);
-
-  // AI Gateway state
-  const [gatewayUrl, setGatewayUrl] = useState("");
-  const [gatewayToken, setGatewayToken] = useState("");
-  // 서버는 저장된 키를 돌려주지 않는다. 입력칸을 비워 두고 "저장돼 있음"만 알린다.
-  const [gatewayHasSavedToken, setGatewayHasSavedToken] = useState(false);
-  const [gatewayId, setGatewayId] = useState<string | null>(null);
-  const [gatewayMode, setGatewayMode] = useState<"resource" | "direct">("direct");
-  const [gatewayOptions, setGatewayOptions] = useState<AccessibleGatewayOption[]>([]);
-  const [selectedGatewayId, setSelectedGatewayId] = useState<string>("");
-  const [gatewayCanEditCredentials, setGatewayCanEditCredentials] = useState(true);
-  const [showToken, setShowToken] = useState(false);
-  const [gatewayLoading, setGatewayLoading] = useState(false);
-  const [gatewaySaving, setGatewaySaving] = useState(false);
-  const [gatewayTesting, setGatewayTesting] = useState(false);
-  const [gatewayConnectionState, setGatewayConnectionState] = useState<GatewayConnectionState>({
-    status: "idle",
-  });
-  const [gatewayNotice, setGatewayNotice] = useState<{ success: boolean; message: string } | null>(
-    null,
-  );
-  const [gatewayError, setGatewayError] = useState("");
 
   const loadMembers = useCallback(async () => {
     setMembersLoading(true);
@@ -135,58 +88,6 @@ export default function ChannelSettingsModal({
     setMembersLoading(false);
   }, [channelId, t]);
 
-  const loadGateway = useCallback(async () => {
-    setGatewayLoading(true);
-    setGatewayError("");
-    try {
-      const [gatewayRes, optionsRes] = await Promise.all([
-        fetch(`/api/channels/${channelId}/gateway`),
-        fetch("/api/gateways"),
-      ]);
-
-      if (optionsRes.ok) {
-        const optionsData = await optionsRes.json().catch(() => ({}));
-        setGatewayOptions(Array.isArray(optionsData.gateways) ? optionsData.gateways : []);
-      } else {
-        setGatewayOptions([]);
-      }
-
-      if (!gatewayRes.ok) {
-        return;
-      }
-
-      const data = await gatewayRes.json();
-      const gc = data?.gatewayConfig;
-      if (gc) {
-        setGatewayHasSavedToken(gc.hasToken === true);
-        const nextGatewayId = typeof gc.gatewayId === "string" ? gc.gatewayId : null;
-        const currentOption = nextGatewayId
-          ? {
-              id: nextGatewayId,
-              displayName: gc.displayName || gc.url || nextGatewayId,
-              baseUrl: gc.url || "",
-              canEditCredentials: gc.canEditCredentials !== false,
-              isOwner: gc.canEditCredentials !== false,
-              shareRole: null,
-            }
-          : null;
-        setGatewayOptions((prev) => {
-          if (!currentOption || prev.some((item) => item.id === currentOption.id)) {
-            return prev;
-          }
-          return [currentOption, ...prev];
-        });
-        setGatewayId(nextGatewayId);
-        setSelectedGatewayId(nextGatewayId ?? "");
-        setGatewayMode(nextGatewayId ? "resource" : "direct");
-        setGatewayUrl(gc.url || "");
-        setGatewayToken(gc.token || "");
-        setGatewayCanEditCredentials(gc.canEditCredentials !== false);
-      }
-    } catch {}
-    setGatewayLoading(false);
-  }, [channelId]);
-
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | null = null;
     if (tab === "members") {
@@ -194,15 +95,10 @@ export default function ChannelSettingsModal({
         void loadMembers();
       }, 0);
     }
-    if (tab === "gateway") {
-      timer = setTimeout(() => {
-        void loadGateway();
-      }, 0);
-    }
     return () => {
       if (timer) clearTimeout(timer);
     };
-  }, [tab, loadGateway, loadMembers]);
+  }, [tab, loadMembers]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -285,148 +181,6 @@ export default function ChannelSettingsModal({
     }
   };
 
-  const handleTestConnection = async () => {
-    setGatewayTesting(true);
-    setGatewayNotice(null);
-    setGatewayConnectionState({ status: "idle" });
-    setGatewayError("");
-    try {
-      const shouldUseResource = gatewayMode === "resource" && !!selectedGatewayId;
-      const res = shouldUseResource
-        ? await fetch(`/api/gateways/${selectedGatewayId}/test`, { method: "POST" })
-        : await fetch("/api/channels/test-gateway", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              url: gatewayUrl.trim(),
-              token: gatewayToken.trim(),
-            }),
-          });
-      const data = await res.json();
-      if (res.ok) {
-        setGatewayConnectionState({ status: "connected" });
-      } else {
-        setGatewayConnectionState({
-          status: "error",
-          error: getLocalizedErrorMessage(t, data, "errors.connectionFailed"),
-        });
-      }
-    } catch {
-      setGatewayConnectionState({ status: "error", error: t("errors.connectionFailed") });
-    } finally {
-      setGatewayTesting(false);
-    }
-  };
-
-  const handleSaveGateway = async () => {
-    if (gatewayMode === "resource" && !selectedGatewayId) {
-      setGatewayError(t("settings.gatewaySelect"));
-      return;
-    }
-    setGatewaySaving(true);
-    setGatewayError("");
-    const gatewayConfig: Record<string, unknown> = {};
-    if (gatewayMode === "resource" && selectedGatewayId) {
-      gatewayConfig.gatewayId = selectedGatewayId;
-    } else {
-      gatewayConfig.url = gatewayUrl.trim() || null;
-      // 비워 두면 "그대로 두라"는 뜻이다 — 키를 지우려면 게이트웨이를 해제한다.
-      if (gatewayToken.trim()) gatewayConfig.token = gatewayToken.trim();
-    }
-    try {
-      const res = await fetch(`/api/channels/${channelId}/gateway`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(gatewayConfig),
-      });
-      if (!res.ok) {
-        // 게이트웨이를 바꿔도 NPC 를 지우지 않는다 — NPC 는 프로필의 자리이고,
-        // 서버는 더 이상 "NPC 를 초기화할까요" 409 를 돌려주지 않는다.
-        const data = await res.json().catch(() => ({}));
-        setGatewayError(getLocalizedErrorMessage(t, data, "settings.failedToSave"));
-      } else {
-        const data = await res.json().catch(() => ({}));
-        const nextGatewayId =
-          typeof data?.gatewayConfig?.gatewayId === "string" ? data.gatewayConfig.gatewayId : null;
-        setGatewayId(nextGatewayId);
-        setSelectedGatewayId(nextGatewayId ?? "");
-        setGatewayMode(nextGatewayId ? "resource" : "direct");
-        setGatewayCanEditCredentials(data?.gatewayConfig?.canEditCredentials !== false);
-        setGatewayUrl(data?.gatewayConfig?.url ?? gatewayUrl);
-        setGatewayHasSavedToken(
-          data?.gatewayConfig?.hasToken === true || Boolean(gatewayToken.trim()),
-        );
-        // 입력칸은 비운다 — 저장된 키를 화면에 되돌려 두지 않는다.
-        setGatewayToken("");
-        if (nextGatewayId) {
-          setGatewayOptions((prev) => {
-            if (prev.some((item) => item.id === nextGatewayId)) return prev;
-            return [
-              {
-                id: nextGatewayId,
-                displayName:
-                  data?.gatewayConfig?.displayName || data?.gatewayConfig?.url || nextGatewayId,
-                baseUrl: data?.gatewayConfig?.url || "",
-                canEditCredentials: data?.gatewayConfig?.canEditCredentials !== false,
-                isOwner: data?.gatewayConfig?.canEditCredentials !== false,
-                shareRole: null,
-              },
-              ...prev,
-            ];
-          });
-        }
-        onUpdated({
-          gatewayConfig: {
-            gatewayId: data?.gatewayConfig?.gatewayId ?? gatewayId,
-            url: data?.gatewayConfig?.url ?? gatewayConfig.url,
-            hasToken: data?.gatewayConfig?.hasToken === true || Boolean(gatewayToken.trim()),
-            canEditCredentials:
-              data?.gatewayConfig?.canEditCredentials ?? gatewayCanEditCredentials,
-          },
-        });
-        setGatewayNotice({ success: true, message: t("settings.saved") });
-        setTimeout(() => setGatewayNotice(null), 3000);
-      }
-    } catch {
-      setGatewayError(t("settings.failedToSave"));
-    }
-    setGatewaySaving(false);
-  };
-
-  const handleDeleteGateway = async () => {
-    setGatewaySaving(true);
-    setGatewayError("");
-    try {
-      const res = await fetch(`/api/channels/${channelId}/gateway`, { method: "DELETE" });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        setGatewayError(getLocalizedErrorMessage(t, data, "settings.failedToSave"));
-      } else {
-        setGatewayId(null);
-        setSelectedGatewayId("");
-        setGatewayMode("direct");
-        setGatewayUrl("");
-        setGatewayToken("");
-        setGatewayHasSavedToken(false);
-        setGatewayCanEditCredentials(true);
-        setGatewayConnectionState({ status: "idle" });
-        onUpdated({
-          gatewayConfig: {
-            gatewayId: null,
-            url: null,
-            hasToken: false,
-            canEditCredentials: true,
-          },
-        });
-        setGatewayNotice({ success: true, message: t("settings.saved") });
-        setTimeout(() => setGatewayNotice(null), 3000);
-      }
-    } catch {
-      setGatewayError(t("settings.failedToSave"));
-    }
-    setGatewaySaving(false);
-  };
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
       <div className="bg-surface rounded-xl w-full max-w-lg border border-border max-h-[80vh] flex flex-col">
@@ -454,15 +208,6 @@ export default function ChannelSettingsModal({
           >
             {t("settings.members")}
           </button>
-          {/* crew-office: "AI 연결" 은 Hermes 게이트웨이 설정이라 숨긴다(product-mode.ts). */}
-          {HERMES_UI_ENABLED && (
-            <button
-              onClick={() => setTab("gateway")}
-              className={`flex-1 py-2 text-sm font-semibold ${tab === "gateway" ? "text-info border-b-2 border-info" : "text-text-muted"}`}
-            >
-              {t("settings.gateway")}
-            </button>
-          )}
         </div>
 
         <div className="flex-1 overflow-y-auto p-5">
@@ -604,7 +349,7 @@ export default function ChannelSettingsModal({
                 {saving ? t("common.loading") : t("common.save")}
               </button>
             </div>
-          ) : tab === "members" ? (
+          ) : (
             <div>
               {membersLoading ? (
                 <p className="text-text-muted text-sm py-4 text-center">
@@ -667,202 +412,6 @@ export default function ChannelSettingsModal({
                     </button>
                   </div>
                 </div>
-              )}
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {gatewayLoading ? (
-                <p className="text-text-muted text-sm py-4 text-center">
-                  {t("settings.loadingGateway")}
-                </p>
-              ) : (
-                <>
-                  <div>
-                    <label className="block text-sm font-semibold text-text-secondary mb-2">
-                      {t("settings.gatewaySource")}
-                    </label>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setGatewayMode("resource");
-                          setGatewayConnectionState({ status: "idle" });
-                          setGatewayNotice(null);
-                        }}
-                        className={`px-3 py-2 rounded text-sm font-semibold ${
-                          gatewayMode === "resource"
-                            ? "bg-indigo-600 text-white"
-                            : "bg-surface-raised text-text-secondary"
-                        }`}
-                      >
-                        {t("settings.gatewayUseSaved")}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setGatewayMode("direct");
-                          setGatewayCanEditCredentials(true);
-                          setGatewayConnectionState({ status: "idle" });
-                          setGatewayNotice(null);
-                        }}
-                        className={`px-3 py-2 rounded text-sm font-semibold ${
-                          gatewayMode === "direct"
-                            ? "bg-indigo-600 text-white"
-                            : "bg-surface-raised text-text-secondary"
-                        }`}
-                      >
-                        {t("settings.gatewayUseCustom")}
-                      </button>
-                    </div>
-                  </div>
-                  {gatewayMode === "resource" ? (
-                    <>
-                      <div>
-                        <label className="block text-sm font-semibold text-text-secondary mb-1">
-                          {t("settings.gatewaySaved")}
-                        </label>
-                        <select
-                          value={selectedGatewayId}
-                          onChange={(e) => {
-                            const nextId = e.target.value;
-                            const option = gatewayOptions.find((item) => item.id === nextId);
-                            setSelectedGatewayId(nextId);
-                            setGatewayCanEditCredentials(option?.canEditCredentials ?? true);
-                            setGatewayId(nextId || null);
-                            setGatewayUrl(option?.baseUrl ?? "");
-                            if (!option?.canEditCredentials) {
-                              setGatewayToken("");
-                            }
-                            setGatewayConnectionState({ status: "idle" });
-                            setGatewayNotice(null);
-                          }}
-                          className="w-full px-3 py-2 bg-bg border border-border rounded text-text focus:outline-none focus:border-indigo-500"
-                        >
-                          <option value="">{t("settings.gatewaySelect")}</option>
-                          {gatewayOptions.map((option) => (
-                            <option key={option.id} value={option.id}>
-                              {option.displayName || option.baseUrl}
-                            </option>
-                          ))}
-                        </select>
-                        {selectedGatewayId && (
-                          <p className="mt-2 text-xs text-text-muted">
-                            {gatewayOptions.find((option) => option.id === selectedGatewayId)
-                              ?.baseUrl ?? ""}
-                          </p>
-                        )}
-                        {gatewayOptions.length === 0 && (
-                          <p className="mt-2 text-xs text-npc-dark">
-                            {t("settings.gatewayNoSaved")}
-                          </p>
-                        )}
-                      </div>
-                      {!gatewayCanEditCredentials && selectedGatewayId && (
-                        <p className="text-xs text-npc-dark">
-                          {t("settings.gatewaySharedReadOnly")}
-                        </p>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      <div>
-                        <label className="block text-sm font-semibold text-text-secondary mb-1">
-                          {t("settings.gatewayUrl")}
-                        </label>
-                        <input
-                          type="text"
-                          value={gatewayUrl}
-                          onChange={(e) => setGatewayUrl(e.target.value)}
-                          placeholder={t("settings.gatewayUrlPlaceholder")}
-                          disabled={!gatewayCanEditCredentials}
-                          className="w-full px-3 py-2 bg-bg border border-border rounded text-text placeholder-gray-500 focus:outline-none focus:border-indigo-500 disabled:opacity-60"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-semibold text-text-secondary mb-1">
-                          {t("settings.gatewayToken")}
-                        </label>
-                        <div className="flex gap-2">
-                          <input
-                            type={showToken ? "text" : "password"}
-                            value={gatewayToken}
-                            onChange={(e) => setGatewayToken(e.target.value)}
-                            placeholder={
-                              gatewayHasSavedToken
-                                ? t("settings.gatewayTokenSaved")
-                                : t("settings.gatewayTokenPlaceholder")
-                            }
-                            disabled={!gatewayCanEditCredentials}
-                            className="flex-1 px-3 py-2 bg-bg border border-border rounded text-text placeholder-gray-500 focus:outline-none focus:border-indigo-500 disabled:opacity-60"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setShowToken((v) => !v)}
-                            className="px-3 py-2 bg-surface-raised hover:bg-gray-600 rounded text-sm text-text-secondary"
-                          >
-                            {showToken ? t("common.hide") : t("common.show")}
-                          </button>
-                        </div>
-                      </div>
-                      <p className="text-xs text-npc-dark">
-                        {t("channel.gateway.directInputHint")}{" "}
-                        <Link href="/gateways" className="underline hover:text-npc">
-                          {t("gateways.title")}
-                        </Link>
-                      </p>
-                    </>
-                  )}
-                  {gatewayConnectionState.status !== "idle" && (
-                    <GatewayStatusCard
-                      status={gatewayConnectionState.status}
-                      error={gatewayConnectionState.error}
-                      detail={
-                        gatewayConnectionState.status === "connected"
-                          ? t("settings.connected")
-                          : undefined
-                      }
-                    />
-                  )}
-                  {gatewayNotice && (
-                    <p
-                      className={`text-sm ${gatewayNotice.success ? "text-success" : "text-danger"}`}
-                    >
-                      {gatewayNotice.message}
-                    </p>
-                  )}
-                  {gatewayError && <p className="text-danger text-sm">{gatewayError}</p>}
-                  <div className="flex gap-2">
-                    {gatewayId && (
-                      <button
-                        type="button"
-                        onClick={() => void handleDeleteGateway()}
-                        disabled={gatewaySaving}
-                        className="px-4 py-2 bg-red-700/70 hover:bg-red-700 rounded font-semibold text-white disabled:opacity-50"
-                      >
-                        {t("settings.disconnectGateway")}
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => void handleTestConnection()}
-                      disabled={
-                        gatewayTesting ||
-                        (gatewayMode === "resource" ? !selectedGatewayId : !gatewayUrl.trim())
-                      }
-                      className="flex-1 px-4 py-2 bg-surface-raised hover:bg-gray-600 rounded font-semibold text-text disabled:opacity-50"
-                    >
-                      {gatewayTesting ? t("common.loading") : t("settings.testConnection")}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void handleSaveGateway()}
-                      disabled={gatewaySaving || (gatewayMode === "resource" && !selectedGatewayId)}
-                      className="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 rounded font-semibold text-white disabled:opacity-50"
-                    >
-                      {gatewaySaving ? t("common.loading") : t("common.save")}
-                    </button>
-                  </div>
-                </>
               )}
             </div>
           )}

@@ -103,24 +103,6 @@ test("legacy task-system socket events are not registered anywhere", () => {
   );
 });
 
-test("게이트웨이 설정이 바뀌면 런타임 상태 캐시가 무효화된다", () => {
-  // 원래 이 자리에는 "server.js 가 invalidateGatewayConnectionForChannel 을 부르는가"를
-  // 보는 가드가 있었다. 게이트웨이 연결 캐시가 두 곳(server.js 의 channelId 키,
-  // socket-handlers 의 gatewayId 키)으로 갈라져 한쪽만 지워지던 조용한 회귀를 고정한
-  // 것이었다. OpenClaw 가 사라지면서 그 WS 커넥션 풀도 둘 다 없어졌다.
-  //
-  // 지켜야 할 것은 남아 있다: 설정이 바뀌면 게이트웨이 런타임 상태 캐시가 무효화되어야
-  // 한다. 그 호출은 gateway-resources.ts 가 변경 시점에 직접 한다 — 여기서는 그 사실이
-  // 유지되는지만 본다.
-  const src = readFileSync(path.join(repoRoot, "src/lib/gateway-resources.ts"), "utf8");
-  assert.match(
-    src,
-    /invalidateGatewayRuntimeState\s*\(/,
-    "gateway-resources.ts 가 invalidateGatewayRuntimeState 를 호출하지 않습니다 — " +
-      "게이트웨이 주소나 토큰을 바꿔도 캐시된 상태가 그대로 쓰입니다.",
-  );
-});
-
 test("socket-handlers enforces single-session-per-user by emitting session:kicked", () => {
   // Regression guard for the P1b unification: pre-refactor server.js kicked
   // any prior live session for the same user account on player:join. The
@@ -240,93 +222,13 @@ test("every npc:broadcast-* handler drops the room runtime cache", () => {
   }
 });
 
-// 프로브 실패를 5xx 로 답하면 진단이 사용자에게 도달하지 않는다 — Cloudflare 가 오리진의
-// 5xx 를 자기 에러 페이지로 갈아치우기 때문이다(실측: 컨테이너 내부와 Caddy 까지는 본문이
-// 멀쩡한데, 인터넷 경유에서 `server: cloudflare` · `body="error code: 502"` 가 된다).
-// 그래서 브라우저는 `502 {}` 만 받았고 화면에는 generic 폴백만 떴다.
-//
-// 4xx 는 통과하므로 인증·권한 응답은 대상이 아니다. 이 가드는 게이트웨이 테스트 라우트가
-// 5xx 로 되돌아가는 것만 막는다.
-test("the gateway test route never answers with 5xx", () => {
-  const src = readFileSync(path.join(repoRoot, "src/app/api/gateways/[id]/test/route.ts"), "utf8");
-  const serverErrors = [...src.matchAll(/status:\s*(5\d\d)/g)].map((m) => m[1]);
-  assert.deepEqual(
-    serverErrors,
-    [],
-    "게이트웨이 테스트가 5xx 를 돌려줍니다 — Cloudflare 가 본문을 갈아치워 사용자는 " +
-      `이유를 볼 수 없습니다: ${serverErrors.join(", ")}`,
-  );
-});
-
-// 프로필은 만들 수만 있고 고칠 수도 지울 수도 없었다 — 토큰을 잘못 넣으면 화면에서
-// 손댈 방법이 없는 막다른 길이었다. 게이트웨이 쪽에는 PATCH·DELETE 가 있는데 프로필
-// 쪽에만 없던, 리소스 간 비대칭이었다.
-test("hermes profiles support edit and delete, not just create", () => {
-  const src = readFileSync(
-    path.join(repoRoot, "src/app/api/gateways/[id]/profiles/[profileId]/route.ts"),
-    "utf8",
-  );
-  for (const method of ["PATCH", "DELETE"]) {
-    assert.ok(
-      new RegExp(`export async function ${method}\\b`).test(src),
-      `프로필 라우트에 ${method} 가 없습니다 — 잘못 만든 프로필을 되돌릴 수 없습니다.`,
-    );
-  }
-});
-
-// 빈 문자열로 자격증명을 지우는 사고를 막는 규약. 화면이 빈 칸을 보내지 않는 것과
-// 서버가 빈 값을 무시하는 것, 둘 다 있어야 한 쪽이 바뀌어도 토큰이 날아가지 않는다.
-test("a blank token never overwrites a stored profile credential", () => {
-  const src = readFileSync(path.join(repoRoot, "src/lib/hermes-profiles.ts"), "utf8");
-  const fn = src.slice(src.indexOf("export async function updateHermesProfile"));
-  const body = fn.slice(0, fn.indexOf("\nexport "));
-  assert.ok(
-    /typeof input\.token === "string" && input\.token\.trim\(\)/.test(body),
-    "updateHermesProfile 이 빈 토큰을 걸러내지 않습니다 — 저장을 누르면 토큰이 지워집니다.",
-  );
-});
-
-// T5 하드 게이트 10: 자동화가 더하는 소켓 이벤트는 `kanban:event`·`cron:event`·`npc:working`·
-// `artifact:event` 넷뿐이고, 방 쪽은 `room:message` 에 `notice` 필드를 얹는 것이 전부다. 이름을
-// 상수(`AUTOMATION_SOCKET_EVENTS`)로 묶어 두었으니 다섯째 이름이 생기면 여기서 빨개진다.
-test("automation adds exactly four channel-scoped socket events and reuses room:message", () => {
-  const sink = readFileSync(path.join(repoRoot, "src/server/automation-events.ts"), "utf8");
-  const poller = readFileSync(path.join(repoRoot, "src/server/automation-poller.ts"), "utf8");
-  const literal = (src: string, re: RegExp) => [...new Set([...src.matchAll(re)].map((m) => m[1]))];
-
-  assert.deepEqual(
-    literal(sink, /"((?:artifact|kanban|cron|npc):[a-z-]+)"/g).sort(),
-    ["artifact:event", "cron:event", "kanban:event", "npc:working"],
-    "사건 싱크가 쓰는 채널 이벤트는 정확히 네 개여야 합니다.",
-  );
-  // `npc:response-state` 와 섞이지 않는다(R27) — 싱크·폴러 어디에도 그 이름이 없다.
-  for (const src of [sink, poller]) assert.doesNotMatch(src, /npc:response-state/);
-  // 방 방송은 room-socket 의 helper 를 통해서만 — 폴러·싱크가 room:* 리터럴을 직접 쓰지 않는다.
-  assert.deepEqual(literal(sink + poller, /"(room:[a-z-]+)"/g), []);
-  assert.match(poller, /broadcastRoomMessage\(/, "방 메시지는 room-socket 의 helper 로 나갑니다.");
-});
-
-// R27: 채널 접속 때 현재 작업 중 스냅샷을 그 소켓에 보내고, 접속 유무를 폴러에 알린다(R24).
-test("player:join sends the npc:working snapshot and reports channel activity to the poller", () => {
+// crew-office: Hermes 게이트웨이·프로필·자동화 폴러는 걷어냈다. 그 사건 이름이 소켓 서버에 되살아나지 않게 막는다.
+test("Hermes 자동화 소켓 이벤트는 소켓 서버에 없다", () => {
   const src = readFileSync(path.join(repoRoot, "src/server/socket-handlers.ts"), "utf8");
-  const start = src.indexOf('"player:join"');
-  const end = src.indexOf('"player:move"');
-  assert.ok(start !== -1 && end > start);
-  const body = src.slice(start, end);
-  assert.match(
-    body,
-    /getWorkingSnapshot\(/,
-    "player:join 이 npc:working 스냅샷을 보내지 않습니다.",
-  );
-  assert.match(body, /AUTOMATION_SOCKET_EVENTS\.working/);
-  assert.match(
-    body,
-    /notifyChannelActivity\(/,
-    "접속을 폴러에 알리지 않으면 주기가 길게 고정됩니다.",
-  );
-  const disconnect = src.slice(src.indexOf('socket.on("disconnect"'));
-  assert.match(disconnect, /notifyChannelActivity\(/, "disconnect 가 폴러에 알리지 않습니다.");
-  assert.match(src, /startAutomationPollers\(/, "setupSocketHandlers 가 폴러를 켜지 않습니다.");
+  for (const name of ["kanban:event", "cron:event", "npc:working", "artifact:event"]) {
+    assert.ok(!src.includes(`"${name}"`), `${name} 이 socket-handlers 에 되살아났습니다`);
+  }
+  assert.doesNotMatch(src, /startAutomationPollers|getWorkingSnapshot|hermes-dispatch/);
 });
 
 // DM 을 대화 목록에 올린 배선(카드: "직원과의 DM 이 대화 목록에 없다").

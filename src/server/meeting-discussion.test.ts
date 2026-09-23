@@ -412,7 +412,6 @@ function npcConfig(over: Record<string, unknown> = {}) {
     agentId: null as string | null,
     sessionKeyPrefix: "sess-1",
     adapterType: "openclaw",
-    hermesProfileId: null as string | null,
     role: "Participant",
     passPolicy: null as string | null,
     ...over,
@@ -459,12 +458,8 @@ test("resolution layer: 제외 사유를 각각 그 사유로 통지한다", asy
     brokerConfig(
       [
         npcConfig({ id: "n-unbound", name: "Unbound", adapterType: "unbound" }),
-        npcConfig({
-          id: "n-hermes",
-          name: "Hermes",
-          adapterType: "hermes",
-          hermesProfileId: "p-1",
-        }),
+        // crew-office: Hermes 제거 후 hermes 어댑터로 남은 옛 NPC 도 unbound 로 제외된다.
+        npcConfig({ id: "n-hermes", name: "Hermes", adapterType: "hermes" }),
         // OpenClaw 제거 후: adapterType 이 openclaw 로 남아 있는 NPC 는 agentId 유무와
         // 무관하게 unbound 로 제외된다 — 쓸 백엔드가 더는 존재하지 않기 때문이다.
         npcConfig({
@@ -478,14 +473,13 @@ test("resolution layer: 제외 사유를 각각 그 사유로 통지한다", asy
       { adapterRegistry: registry },
     ),
     { onParticipantsExcluded: (list: ExcludedNotice[]) => excluded.push(...list) },
-    { createHermesAdapter: async () => null }, // 프로필 해석 실패를 흉내낸다
   );
 
   assert.deepEqual(
     excluded.map((e) => [e.npcId, e.reason]),
     [
       ["n-unbound", "unbound"],
-      ["n-hermes", "hermes_profile_unavailable"],
+      ["n-hermes", "unbound"],
       ["n-oc", "unbound"],
       ["n-registry", "adapter_unavailable"],
     ],
@@ -493,20 +487,14 @@ test("resolution layer: 제외 사유를 각각 그 사유로 통지한다", asy
   assert.deepEqual(broker.config.participants, [], "해석에 실패한 NPC는 참가자로 남지 않는다");
 });
 
-test("resolution layer: hermes / registry 디스패치가 각각 맞는 백엔드로 가고, openclaw 는 빠진다", async () => {
+test("resolution layer: registry 어댑터만 참가하고, hermes·openclaw 는 빠진다", async () => {
   const registry = new AdapterRegistry();
   registry.register(recordingAdapter(["PASS"]) as never);
 
-  const hermesCalls: Array<[string, string, string]> = [];
   const broker = await defaultCreateMeetingBroker(
     brokerConfig(
       [
-        npcConfig({
-          id: "n-hermes",
-          name: "Hermes",
-          adapterType: "hermes",
-          hermesProfileId: "p-1",
-        }),
+        npcConfig({ id: "n-hermes", name: "Hermes", adapterType: "hermes" }),
         npcConfig({
           id: "n-oc",
           name: "LegacyOpenClaw",
@@ -518,39 +506,26 @@ test("resolution layer: hermes / registry 디스패치가 각각 맞는 백엔�
       { adapterRegistry: registry },
     ),
     {},
-    {
-      createHermesAdapter: async (npcId: string, userId: string, contextKey: string) => {
-        hermesCalls.push([npcId, userId, contextKey]);
-        return recordingAdapter(["PASS"]) as never;
-      },
-    },
   );
 
-  // hermes 갈래만 hermes 어댑터 팩토리를 거친다. contextKey는 sessionKey에서 prefix를 뗀 값이다.
-  assert.deepEqual(hermesCalls, [["n-hermes", "user-1", "meeting-meet-1"]]);
-  // openclaw 는 쓸 백엔드가 없으므로 참가자로 남지 않는다. agentId 가 있어도 마찬가지다.
+  // hermes·openclaw 는 쓸 백엔드가 없으므로 참가자로 남지 않는다. agentId 가 있어도 마찬가지다.
   assert.deepEqual(
     broker.config.participants.map((p) => p.npcId),
-    ["n-hermes", "n-cli"],
+    ["n-cli"],
   );
 });
 
 test("resolution layer: 개명 후에도 회의 세션키 형식이 그대로다", async () => {
   const adapterRegistry = new AdapterRegistry();
+  adapterRegistry.register(recordingAdapter(["PASS"]) as never);
   const resolved = await resolveNpcAdapter(
     npcConfig({
       id: "npc123",
       name: "단비",
       sessionKeyPrefix: null,
-      adapterType: "hermes",
-      hermesProfileId: "p-1",
+      adapterType: "cli",
     }) as never,
-    {
-      sessionScope: "meeting-abc",
-      userId: "u1",
-      adapterRegistry,
-      createHermesAdapter: async () => recordingAdapter(["PASS"]) as never,
-    },
+    { sessionScope: "meeting-abc", userId: "u1", adapterRegistry },
   );
 
   assert.ok(!("excluded" in resolved));
@@ -629,7 +604,7 @@ test("resolution layer: 참가자의 role이 발언 프롬프트까지 전달된
   assert.match(speakPrompt!, /Cli\(Facilitator\)/);
 });
 
-// Hermes 세션은 `<prefix>-<scope>` 로 키가 잡힌다. 이 문자열이 바뀌면 그 NPC 의 대화
+// 세션은 `<prefix>-<scope>` 로 키가 잡힌다. 이 문자열이 바뀌면 그 NPC 의 대화
 // 맥락이 조용히 끊긴다 — 에러가 아니라 "어제 얘기를 기억 못 하는" 증상으로 나타나므로
 // 리터럴을 글자 그대로 붙들어 둔다. 실제로 요약 범위에서 `-meeting-` 이 빠진 적이 있다.
 test("회의 세션 범위는 meeting-<id> 다", () => {

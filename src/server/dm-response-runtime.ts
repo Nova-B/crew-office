@@ -1,4 +1,4 @@
-import { withStreamDiagnosticRequest } from "@/lib/hermes/stream-diagnostics";
+import { withStreamDiagnosticRequest } from "@/lib/stream-diagnostics";
 import { createTurnTimeout } from "@/lib/conversation/turn-timeout";
 import type { ChatResponse } from "@/lib/chat-response";
 import { ChatResponseTracker, SessionQueue } from "./chat-response-tracker";

@@ -81,16 +81,21 @@ export async function seedUser(prefix = "user") {
   return user;
 }
 
+/**
+ * crew-office: 게이트웨이 토큰 암호화 코드는 Hermes 와 함께 걷어냈다. 레거시 표(slice 3 에서 정리)에
+ * 행을 심는 테스트용 자리값이다 — 아무도 복호화하지 않는다.
+ */
+const TEST_TOKEN_CIPHERTEXT = "test-token-ciphertext";
+
 export async function seedGateway(ownerUserId: string, baseUrl = "http://gw.test") {
   const { db, gatewayResources } = await loadDb();
-  const { encryptGatewayToken } = await import("@/lib/gateway-resources");
   const [gateway] = await db
     .insert(gatewayResources)
     .values({
       ownerUserId,
       displayName: "Test Gateway",
       baseUrl,
-      tokenEncrypted: encryptGatewayToken("gateway-owner-key-1234567890"),
+      tokenEncrypted: TEST_TOKEN_CIPHERTEXT,
     })
     .returning();
   return gateway;
@@ -101,18 +106,30 @@ export async function seedHermesProfile(
   opts: { profileName?: string; displayName?: string | null; appearance?: unknown } = {},
 ) {
   const { db, hermesProfiles, jsonForDb } = await loadDb();
-  const { encryptGatewayToken } = await import("@/lib/gateway-resources");
   const [profile] = await db
     .insert(hermesProfiles)
     .values({
       gatewayId,
       profileName: opts.profileName ?? `profile-${crypto.randomUUID().slice(0, 8)}`,
-      tokenEncrypted: encryptGatewayToken("profile-key-1234567890"),
+      tokenEncrypted: TEST_TOKEN_CIPHERTEXT,
       displayName: opts.displayName ?? null,
       appearance: jsonForDb(opts.appearance ?? { bodyType: "female", layers: {} }),
     })
     .returning();
   return profile;
+}
+
+/**
+ * crew-office: 레거시 채널↔게이트웨이 바인딩 행만 심는다(표는 slice 3 에서 정리). 예전 `gateway-resources`
+ * 의 바인딩은 보드 확보·런타임 캐시 무효화까지 했지만 Hermes 와 함께 걷어냈다.
+ */
+async function bindGatewayToChannel(input: {
+  channelId: string;
+  gatewayId: string;
+  boundByUserId: string;
+}) {
+  const { db, channelGatewayBindings } = await loadDb();
+  await db.insert(channelGatewayBindings).values(input);
 }
 
 export async function seedChannel(ownerId: string, name = "Test Channel", mapData?: unknown) {
@@ -128,7 +145,8 @@ export async function seedChannel(ownerId: string, name = "Test Channel", mapDat
 
 export async function seedNpc(input: {
   channelId: string;
-  hermesProfileId: string;
+  /** crew-office: CLI 직원은 프로필이 없다(null). */
+  hermesProfileId?: string | null;
   name?: string | null;
   positionX?: number | null;
   positionY?: number | null;
@@ -142,7 +160,7 @@ export async function seedNpc(input: {
     .insert(npcs)
     .values({
       channelId: input.channelId,
-      hermesProfileId: input.hermesProfileId,
+      hermesProfileId: input.hermesProfileId ?? null,
       name: input.name ?? "Test NPC",
       positionX: input.positionX ?? null,
       positionY: input.positionY ?? null,
@@ -174,6 +192,8 @@ export async function seedChannelWithProfiles(opts: {
   displayName?: string;
   /** 채널의 맵 데이터 — 있으면 자리 배정 테스트가 실제 좌석을 계산할 수 있다. */
   mapData?: unknown;
+  /** NPC 의 어댑터. 기본은 레거시 "hermes" — `/api/npcs` 는 은퇴한 어댑터를 숨기므로 그 라우트 테스트는 "claude" 를 준다. */
+  adapterType?: string;
 }) {
   const { placedActive = 0, unplaced = 0, dormant = 0, profiles = 0 } = opts;
 
@@ -181,7 +201,6 @@ export async function seedChannelWithProfiles(opts: {
   const gateway = await seedGateway(user.id, await sharedStubBaseUrl());
   const channel = await seedChannel(user.id, undefined, opts.mapData);
 
-  const { bindGatewayToChannel } = await import("@/lib/gateway-resources");
   await bindGatewayToChannel({
     channelId: channel.id,
     gatewayId: gateway.id,
@@ -208,6 +227,7 @@ export async function seedChannelWithProfiles(opts: {
       positionX: placed ? nextColumn++ : null,
       positionY: placed ? 0 : null,
       active: kind !== "dormant",
+      adapterType: opts.adapterType,
     });
     npcIds.push(npc.id);
     isFirst = false;
@@ -238,7 +258,6 @@ export async function seedGatewayBoundToChannels(opts: { channels: number }) {
   const user = await seedUser("gateway-owner");
   const gateway = await seedGateway(user.id, await sharedStubBaseUrl());
 
-  const { bindGatewayToChannel } = await import("@/lib/gateway-resources");
   const channelIds: string[] = [];
   for (let i = 0; i < opts.channels; i += 1) {
     const channel = await seedChannel(user.id);

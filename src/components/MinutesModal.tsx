@@ -280,11 +280,10 @@ export default function MinutesModal({
                   </div>
                 )}
 
-                {/* 결정·후속 업무와 등록 제안. 종료 화면을 닫았어도 여기서 다시 열린다. */}
+                {/* 결정·후속 업무. 종료 화면을 닫았어도 여기서 다시 열린다. */}
                 <div className="mb-3">
                   <MeetingOutcomeSection
                     minutesId={detail.id}
-                    channelId={channelId}
                     npcs={npcs}
                     onSummaryChanged={(summary) =>
                       setDetail((prev) => (prev ? { ...prev, ...summary } : prev))

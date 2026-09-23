@@ -5,7 +5,7 @@ const NPC_RESPONSE_MESSAGE_KEYS = {
   gateway_not_connected: "npc.gatewayNotConnected",
   /**
    * 하위 호환 폴백. 예전 서버·예전 클라이언트가 주고받던 뭉뚱그린 코드라 지우지 않는다 —
-   * 새 코드는 아래 네 가지 중 하나를 쓴다(classify-gateway-failure.ts).
+   * 새 코드는 아래 네 가지 중 하나를 쓴다(adapter-failure.ts).
    */
   gateway_error: "npc.gatewayError",
   /** 게이트웨이 주소에 아무도 없다 — 프로세스가 떠 있는지부터 본다. */

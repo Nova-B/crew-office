@@ -4,7 +4,7 @@ import type { MeetingSpatialCoordinator } from "./meeting-spatial-coordinator";
 import { MEETING_NPC_STREAM_EVENT } from "./meeting-socket";
 import type { AdapterRegistry, NpcAdapter } from "../lib/adapters/types";
 import { withEmployeeWorkspace } from "../lib/adapters/employee-workspace";
-import { isCliEmployeeAdapter } from "../lib/cli-employees";
+import { isCliEmployeeAdapter, isRetiredNpcAdapter } from "../lib/cli-employees";
 import {
   ConversationEngine,
   type EngineParticipant,
@@ -16,11 +16,6 @@ import type {
   MeetingSummaryStatus,
   OutcomeParticipant,
 } from "../lib/meeting-outcome";
-import {
-  classifyNpcDispatch,
-  createHermesAdapterForNpc,
-  deriveHermesContextKey,
-} from "./hermes-dispatch";
 
 const { generateTranscript } =
   // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -57,10 +52,8 @@ type MeetingNpcConfig = {
   name: string;
   agentId: string | null;
   sessionKeyPrefix: string;
-  /** 백엔드 갈래 판정에 쓴다(classifyNpcDispatch). 실 소켓 배선은 항상 채워 보내지만,
-   * 이 파일의 단위 테스트가 최소 픽스처를 쓰므로 optional로 두고 기본값으로 방어한다. */
+  /** 어댑터 레지스트리 키(claude·codex 등). 실 소켓 배선은 항상 채워 보낸다 — 없으면 쓸 어댑터가 없다. */
   adapterType?: string;
-  hermesProfileId?: string | null;
   role?: string | null;
   passPolicy?: string | null;
   /** 이 NPC 의 턴에 실을 시스템 지시. getNpcConfig* 가 계산해 넣는다. */
@@ -98,7 +91,7 @@ type MeetingBrokerParticipant = {
 type ExcludedMeetingNpc = {
   npcId: string;
   displayName: string;
-  reason: "unbound" | "hermes_profile_unavailable" | "adapter_unavailable";
+  reason: "unbound" | "adapter_unavailable";
 };
 
 type MeetingBrokerConfig = {
@@ -232,13 +225,6 @@ function getMeetingRoomId(channelId: string) {
   return `meeting-${channelId}`;
 }
 
-/** createHermesAdapterForNpc와 같은 모양 — 프로필을 못 찾으면 null. */
-type CreateHermesAdapter = (
-  npcId: string,
-  userId: string,
-  contextKey: string,
-) => Promise<NpcAdapter | null>;
-
 export type ResolvedMeetingParticipant = {
   participant: MeetingBrokerParticipant;
   adapter: NpcAdapter;
@@ -246,12 +232,10 @@ export type ResolvedMeetingParticipant = {
 };
 
 /**
- * NPC 한 명을 실제 백엔드 어댑터로 해석한다. P1b 판정(HermesAdapter는 회의 하나당 한 번만 만들고
- * 그 회의 동안 재사용 — 여러 회의가 공유하는 싱글턴으로 등록하지 않는다)을 지키기 위해, 이 함수는
- * 회의 시작 시점에 참가자별로 정확히 한 번만 호출된다.
+ * NPC 한 명을 실제 백엔드 어댑터로 해석한다. 회의 시작 시점에 참가자별로 정확히 한 번만 호출된다.
  */
 /**
- * 회의 세션 범위. Hermes 세션은 `<prefix>-<scope>` 로 키가 잡히므로 이 문자열이
+ * 회의 세션 범위. 세션은 `<prefix>-<scope>` 로 키가 잡히므로 이 문자열이
  * 바뀌면 그 NPC 의 대화 맥락이 끊긴다. 리터럴을 호출부에 흩어 두지 않는 이유는
  * 실제로 한 번 어긋난 적이 있기 때문이다 — 요약 범위에서 `-meeting-` 이 빠졌다.
  */
@@ -273,13 +257,9 @@ export async function resolveNpcAdapter(
     sessionScope: string;
     userId: string;
     adapterRegistry: AdapterRegistry;
-    /** 테스트에서 DB·게이트웨이 없이 hermes 갈래를 관찰하기 위한 주입점. 기본값이 실제 배선이다. */
-    createHermesAdapter?: CreateHermesAdapter;
   },
 ): Promise<ResolvedMeetingParticipant | { excluded: ExcludedMeetingNpc }> {
-  const adapterType = npc.adapterType || "hermes";
-  const hermesProfileId = npc.hermesProfileId ?? null;
-  const dispatchKind = classifyNpcDispatch({ adapterType, hermesProfileId });
+  const adapterType = npc.adapterType ?? "";
   const sessionKeyBase = npc.sessionKeyPrefix || npc.id;
   const sessionKey = `${sessionKeyBase}-${ctx.sessionScope}`;
 
@@ -291,29 +271,12 @@ export async function resolveNpcAdapter(
     instructions: npc.instructions ?? null,
   };
 
-  if (dispatchKind === "unbound") {
+  // crew-office: Hermes·OpenClaw 는 걷어냈다. 그 어댑터로 남은 옛 NPC(와 이관 표시 "unbound")는 이유를 달고
+  // 제외되어, 사용자가 다시 고용해야 한다는 것을 알 수 있게 한다.
+  if (isRetiredNpcAdapter(adapterType)) {
     return { excluded: { npcId: npc.id, displayName: npc.name, reason: "unbound" } };
   }
 
-  if (dispatchKind === "hermes") {
-    const contextKey = deriveHermesContextKey(sessionKey, sessionKeyBase);
-    const createAdapter = ctx.createHermesAdapter ?? createHermesAdapterForNpc;
-    const adapter = await createAdapter(npc.id, ctx.userId, contextKey);
-    if (!adapter) {
-      return {
-        excluded: { npcId: npc.id, displayName: npc.name, reason: "hermes_profile_unavailable" },
-      };
-    }
-    return { participant: participantBase, adapter, sessionKey };
-  }
-
-  if (dispatchKind === "openclaw") {
-    // OpenClaw 는 제거됐다. 남아 있는 openclaw NPC 는 회의에서 조용히 빠지는 대신
-    // 이유를 달고 제외되어, 사용자가 다시 연결해야 한다는 것을 알 수 있게 한다.
-    return { excluded: { npcId: npc.id, displayName: npc.name, reason: "unbound" } };
-  }
-
-  // dispatchKind === "registry"
   if (!ctx.adapterRegistry.has(adapterType)) {
     return { excluded: { npcId: npc.id, displayName: npc.name, reason: "adapter_unavailable" } };
   }
@@ -331,7 +294,6 @@ export async function resolveNpcAdapter(
 export async function defaultCreateMeetingBroker(
   config: MeetingBrokerConfig,
   callbacks: MeetingBrokerCallbacks,
-  deps: { createHermesAdapter?: CreateHermesAdapter } = {},
 ): Promise<MeetingBrokerLike> {
   const resolved: ResolvedMeetingParticipant[] = [];
   const excluded: ExcludedMeetingNpc[] = [];
@@ -341,7 +303,6 @@ export async function defaultCreateMeetingBroker(
       sessionScope: meetingSessionScope(config.meetingId),
       userId: config.userId,
       adapterRegistry: config.adapterRegistry,
-      createHermesAdapter: deps.createHermesAdapter,
     });
     if ("excluded" in result) {
       excluded.push(result.excluded);
