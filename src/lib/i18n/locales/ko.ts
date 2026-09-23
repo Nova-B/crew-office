@@ -3075,6 +3075,27 @@ const ko: Record<string, string> = {
     "이 게이트웨이의 플러그인은 카드 첨부 목록을 주지 않습니다 — 플러그인을 올리면 끝난 카드의 첨부도 여기 보입니다.",
   "artifacts.attachments.untitledCard": "지워진 카드",
   "artifacts.chip": "결과물 저장됨: {title}",
+  // crew-office: CLI 직원 고용
+  "cliHire.open": "CLI 직원 고용",
+  "cliHire.title": "CLI 직원 고용",
+  "cliHire.description":
+    "이 PC에 설치된 Claude Code 또는 Codex가 이 직원을 맡습니다. 대화 기억은 직원별 세션에 남고, 지금은 파일을 읽을 수만 있습니다.",
+  "cliHire.name": "이름",
+  "cliHire.cli": "담당 CLI",
+  "cliHire.checking": "확인 중…",
+  "cliHire.installed": "설치됨",
+  "cliHire.notInstalled": "설치되지 않음",
+  "cliHire.notInstalledHint":
+    "선택한 CLI를 이 PC에서 찾지 못했습니다. 설치하고 로그인한 뒤 다시 시도하세요.",
+  "cliHire.model": "모델 (선택)",
+  "cliHire.modelPlaceholder": "비우면 CLI 기본 모델",
+  "cliHire.soul": "성격·역할",
+  "cliHire.soulPlaceholder": "예: 너는 꼼꼼한 백엔드 개발자다. 근거를 먼저 말한다.",
+  "cliHire.look": "외형",
+  "cliHire.cancel": "취소",
+  "cliHire.submit": "고용",
+  "cliHire.hiring": "고용 중…",
+  "cliHire.failed": "직원을 고용하지 못했습니다.",
 };
 
 export default ko;

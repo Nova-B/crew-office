@@ -109,6 +109,8 @@ import {
   ensureEmployeeWorkspace,
   withEmployeeWorkspace,
 } from "../lib/adapters/employee-workspace.js";
+import { isCliEmployeeAdapter } from "../lib/cli-employees.js";
+import { registerRoomEmitter } from "../lib/rpc-registry.js";
 import { GeminiAdapter } from "../lib/adapters/gemini-adapter.js";
 import { OpencodeAdapter as OpenCodeAdapter } from "../lib/adapters/opencode-adapter.js";
 import {
@@ -448,14 +450,25 @@ function userContextOf(socket: { data?: Record<string, unknown> }): UserContext 
 export function resolveNpcInstructions(
   oc: Record<string, unknown>,
   requestLocale?: string | null,
+  adapterType?: string,
 ): string | undefined {
+  // crew-office: CLI 직원은 인격을 agent_config.soul 에 두고, Hermes 칸반 카드 안내는 받지 않는다
+  // (그 안내는 "카드가 Hermes 에 생성된다"고 말한다 — CLI 직원에게는 없는 기능이다).
+  const cli = isCliEmployeeAdapter(adapterType);
+  const persona = cli && typeof oc.soul === "string" ? oc.soul : null;
+  const taskConfirmation = !cli;
   if (typeof oc.meetingProtocol === "string" && oc.meetingProtocol.trim()) {
-    return composeNpcInstructions({ meetingProtocol: oc.meetingProtocol, taskConfirmation: true });
+    return composeNpcInstructions({
+      persona,
+      meetingProtocol: oc.meetingProtocol,
+      taskConfirmation,
+    });
   }
   const locale = requestLocale || (typeof oc.locale === "string" ? oc.locale : undefined);
   return composeNpcInstructions({
+    persona,
     meetingProtocol: getDefaultMeetingProtocol(locale),
-    taskConfirmation: true,
+    taskConfirmation,
   });
 }
 
@@ -491,7 +504,7 @@ async function getNpcConfig(
       passPolicy: typeof oc.passPolicy === "string" ? oc.passPolicy : null,
       meetingProtocol: typeof oc.meetingProtocol === "string" ? oc.meetingProtocol : null,
       locale: typeof oc.locale === "string" ? oc.locale : null,
-      instructions: resolveNpcInstructions(oc, requestLocale),
+      instructions: resolveNpcInstructions(oc, requestLocale, npc.adapterType),
     };
   } catch (err) {
     console.error(`[npc] Failed to load config for ${npcId}:`, err);
@@ -523,7 +536,7 @@ export async function getNpcConfigsForChannel(
         _name: npc.name,
         meetingProtocol: typeof oc.meetingProtocol === "string" ? oc.meetingProtocol : null,
         locale: typeof oc.locale === "string" ? oc.locale : null,
-        instructions: resolveNpcInstructions(oc, requestLocale),
+        instructions: resolveNpcInstructions(oc, requestLocale, npc.adapterType),
         role: "Participant",
         passPolicy: typeof oc.passPolicy === "string" ? oc.passPolicy : null,
       };
@@ -1052,6 +1065,8 @@ async function isChannelOwner(channelId: string, userId: string): Promise<boolea
 // ---------------------------------------------------------------------------
 
 export function setupSocketHandlers(io: Server) {
+  // crew-office: API 라우트(CLI 직원 고용 등)가 같은 프로세스에서 방 이벤트를 보낼 수 있게 한다.
+  registerRoomEmitter((room, event, payload) => io.to(room).emit(event, payload));
   const loadMotionLayout = async (channelId: string) => {
     const [[channel], channelNpcs] = await Promise.all([
       db

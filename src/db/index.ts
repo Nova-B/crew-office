@@ -19,6 +19,10 @@ const { migrateNpcsToProfileOwnership } = require("./sqlite-npc-profile-ownershi
   migrateNpcsToProfileOwnership: (sqlite: BetterSqlite3.Database) => unknown;
 };
 // eslint-disable-next-line @typescript-eslint/no-require-imports
+const { allowCliEmployees } = require("./sqlite-npc-cli-employees.js") as {
+  allowCliEmployees: (sqlite: BetterSqlite3.Database) => unknown;
+};
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 const { ensureChatRoomTables } = require("./sqlite-chat-rooms.js") as {
   ensureChatRoomTables: (sqlite: BetterSqlite3.Database) => void;
 };
@@ -468,6 +472,8 @@ export function ensureSqliteCompatibility(sqlite: BetterSqlite3.Database) {
     "ALTER TABLE hermes_profiles ADD COLUMN appearance TEXT",
   ]);
   migrateNpcsToProfileOwnership(sqlite);
+  // crew-office: 프로필 소유 이관이 만든 NOT NULL 을 풀어 CLI 직원을 허용한다. server-db.js 와 같은 순서.
+  allowCliEmployees(sqlite);
   ensureChatRoomTables(sqlite);
   // chat_room_messages 가 있어야 notice_json 을 더할 수 있으니 방 테이블 다음이다.
   ensureKanbanCronBookkeeping(sqlite);

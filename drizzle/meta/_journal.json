@@ -148,6 +148,13 @@
       "when": 1789960956729,
       "tag": "0020_channel_motion_config",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1790142447642,
+      "tag": "0021_npc_cli_employees",
+      "breakpoints": true
     }
   ]
 }

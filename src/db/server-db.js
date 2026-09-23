@@ -11,6 +11,7 @@ const { randomUUID } = require("node:crypto");
 const { ensureSqliteBaseSchema } = require("./sqlite-base-schema.js");
 const { retireOpenclawConfig } = require("./sqlite-openclaw-retirement.js");
 const { migrateNpcsToProfileOwnership } = require("./sqlite-npc-profile-ownership.js");
+const { allowCliEmployees } = require("./sqlite-npc-cli-employees.js");
 const { ensureChatRoomTables } = require("./sqlite-chat-rooms.js");
 const { ensureKanbanCronBookkeeping } = require("./sqlite-kanban-cron-bookkeeping.js");
 const { ensureProjectRegistry } = require("./sqlite-project-registry.js");
@@ -373,6 +374,8 @@ function ensureSqliteCompatibility(sqlite) {
     "ALTER TABLE hermes_profiles ADD COLUMN appearance TEXT",
   ]);
   migrateNpcsToProfileOwnership(sqlite);
+  // crew-office: 프로필 소유 이관이 만든 NOT NULL 을 풀어 CLI 직원을 허용한다. index.ts 와 같은 순서.
+  allowCliEmployees(sqlite);
   ensureChatRoomTables(sqlite);
   // chat_room_messages 가 있어야 notice_json 을 더할 수 있으니 방 테이블 다음이다.
   ensureKanbanCronBookkeeping(sqlite);

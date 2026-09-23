@@ -32,7 +32,7 @@ test("프로필을 등록하면 그 게이트웨이가 묶인 모든 채널의 �
   for (const channelId of channelIds) {
     const roster = await selectChannelNpcs(channelId, { roster: true });
     assert.equal(roster.length, 1, `채널 ${channelId} 에 1개`);
-    assert.equal(roster[0].profile.profileName, "sophie");
+    assert.equal(roster[0].profile?.profileName, "sophie");
     assert.equal(roster[0].active, true);
     assert.equal(roster[0].positionX, null, "자리는 아직 없다 — 배치는 별도 행동이다");
   }

@@ -431,9 +431,10 @@ export const npcs = pgTable(
     appearance: jsonb("appearance"),
     adapterType: varchar("adapter_type", { length: 20 }).notNull().default("hermes"),
     adapterConfig: jsonb("adapter_config"),
-    hermesProfileId: uuid("hermes_profile_id")
-      .notNull()
-      .references(() => hermesProfiles.id, { onDelete: "cascade" }),
+    // crew-office: NULL 이면 Hermes 프로필 없는 CLI 직원(adapter_type claude/codex)이다.
+    hermesProfileId: uuid("hermes_profile_id").references(() => hermesProfiles.id, {
+      onDelete: "cascade",
+    }),
     agentConfig: jsonb("agent_config"),
     /** 이 채널에 출근 중인가. false 면 자리는 기억한 채 맵에서 빠진다. */
     active: boolean("active").notNull().default(true),

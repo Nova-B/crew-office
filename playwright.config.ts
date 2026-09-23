@@ -26,7 +26,8 @@ export default defineConfig({
     // 실패한 요청도 없이 "로딩 중..." 만 남는다. 실측: 같은 서버에 127.0.0.1 로 붙으면
     // fiber=0/input=0, localhost 로 붙으면 fiber=2/input=2.
     baseURL: process.env.DESKRPG_E2E_BASE_URL ?? "http://localhost:3000",
-    channel: "chrome",
+    // crew-office: Chrome 이 없는 Windows 에서는 DESKRPG_E2E_CHANNEL=msedge 로 기본 설치된 Edge 를 쓴다.
+    channel: process.env.DESKRPG_E2E_CHANNEL ?? "chrome",
     // headless 로 돈다. 이 결정에는 실측 근거가 있다: headed 로 띄우면 창이 다른 창에
     // 가리는 순간 Chrome 이 requestAnimationFrame 을 초당 1프레임으로 스로틀하고,
     // Phaser 게임 루프가 사실상 멈춰 캐릭터가 이동하지 않는다. document.visibilityState

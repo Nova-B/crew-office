@@ -72,11 +72,12 @@ export async function GET(req: NextRequest) {
     const gatewayState = await getGatewayRuntimeStateForChannel(channelId, {
       forceRefresh: true,
     });
-    if (gatewayState.status !== "valid") {
-      return NextResponse.json({ npcs: [] });
-    }
-
-    const list = await selectChannelNpcs(channelId, { roster });
+    // Hermes 직원은 유효한 게이트웨이 없이 답할 수 없어 숨긴다. crew-office 의 CLI 직원(프로필 없음)은
+    // 게이트웨이와 무관하게 이 PC 의 CLI 로 일하므로 언제나 보인다.
+    const gatewayValid = gatewayState.status === "valid";
+    const list = (await selectChannelNpcs(channelId, { roster })).filter(
+      (npc) => gatewayValid || npc.hermesProfileId === null,
+    );
     // roster 는 "고용 명부" 화면이 자리 번호를 보여줘야 한다 — 맵용 기본 응답은 좌석을
     // 계산할 필요가 없으니 여기서만 채널 맵을 한 번 더 읽는다.
     const seats = roster ? await channelSeats(channelId) : null;

@@ -16,10 +16,16 @@
 
 /** 층 이름. 테스트와 구현이 같은 상수를 본다 — 이름을 바꿔도 계약이 어긋나지 않는다. */
 export const SECTION = {
+  persona: "persona",
   meeting: "team-instructions",
 } as const;
 
 export interface NpcPromptLayers {
+  /**
+   * crew-office: CLI 직원(Claude Code·Codex)의 성격·역할. 위 주석대로 Hermes 직원에게는 넣지 않는다 —
+   * Hermes 는 SOUL.md 가 인격의 정본이다. CLI 에는 SOUL.md 에 해당하는 자리가 없어서 여기 싣는다.
+   */
+  persona?: string | null;
   /** 회의에서 어떻게 발언하는가. 프리셋의 meetingProtocol. */
   meetingProtocol?: string | null;
   /** DeskRPG의 현재 카드 등록 경로를 안내한다. */
@@ -39,6 +45,9 @@ export function composeNpcInstructions(layers: NpcPromptLayers): string | undefi
   const parts: string[] = [];
 
   // 층이 늘면 순서를 여기서 고정한다 — 뒤에 오는 것이 대체로 더 강하게 읽힌다.
+  const persona = layers.persona?.trim();
+  if (persona) parts.push(section(SECTION.persona, persona));
+
   const meeting = layers.meetingProtocol?.trim();
   if (meeting) parts.push(section(SECTION.meeting, meeting));
 

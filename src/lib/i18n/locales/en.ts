@@ -3095,6 +3095,27 @@ const en: Record<string, string> = {
     "This gateway's plugin does not list card attachments — update the plugin to see attachments from finished cards here.",
   "artifacts.attachments.untitledCard": "Deleted card",
   "artifacts.chip": "Artifact saved: {title}",
+  // crew-office: CLI 직원 고용
+  "cliHire.open": "Hire CLI employee",
+  "cliHire.title": "Hire a CLI employee",
+  "cliHire.description":
+    "Claude Code or Codex installed on this PC runs this employee. Conversation memory stays in the employee's own session, and for now it can only read files.",
+  "cliHire.name": "Name",
+  "cliHire.cli": "CLI",
+  "cliHire.checking": "Checking…",
+  "cliHire.installed": "Installed",
+  "cliHire.notInstalled": "Not installed",
+  "cliHire.notInstalledHint":
+    "The selected CLI was not found on this PC. Install it, sign in, and try again.",
+  "cliHire.model": "Model (optional)",
+  "cliHire.modelPlaceholder": "Leave empty for the CLI default",
+  "cliHire.soul": "Personality and role",
+  "cliHire.soulPlaceholder": "e.g. You are a careful backend developer. Lead with evidence.",
+  "cliHire.look": "Appearance",
+  "cliHire.cancel": "Cancel",
+  "cliHire.submit": "Hire",
+  "cliHire.hiring": "Hiring…",
+  "cliHire.failed": "Could not hire the employee.",
 };
 
 export default en;

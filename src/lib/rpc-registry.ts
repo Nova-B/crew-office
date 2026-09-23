@@ -39,3 +39,19 @@ export function getGatewayConfigUpdatedHandler(): GatewayConfigUpdatedHandler | 
   const handler = g[GATEWAY_CONFIG_UPDATED_KEY];
   return typeof handler === "function" ? (handler as GatewayConfigUpdatedHandler) : undefined;
 }
+
+// crew-office: API 라우트가 같은 프로세스의 소켓 서버로 방 이벤트를 보낸다. `/_internal/emit` HTTP 브리지는
+// server.js 에만 있어 개발 서버(dev-server.ts)에서는 조용히 실패했다. 소켓 서버가 떠 있으면 이것을 쓰고,
+// 없을 때만 호출부가 HTTP 로 넘어간다.
+type RoomEmitter = (room: string, event: string, payload: unknown) => void;
+const ROOM_EMITTER_KEY = "__crew_office_room_emitter__";
+const emitters = globalThis as typeof globalThis & Record<string, RoomEmitter | undefined>;
+
+export function registerRoomEmitter(emitter: RoomEmitter): void {
+  emitters[ROOM_EMITTER_KEY] = emitter;
+}
+
+export function getRoomEmitter(): RoomEmitter | undefined {
+  const emitter = emitters[ROOM_EMITTER_KEY];
+  return typeof emitter === "function" ? emitter : undefined;
+}

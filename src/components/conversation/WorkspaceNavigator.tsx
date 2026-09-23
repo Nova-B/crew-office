@@ -50,6 +50,8 @@ type Props = {
   onSetStartPosition?: () => void;
   onAddNpc?: () => void;
   addNpcDisabled?: boolean;
+  /** crew-office: Hermes 없이 Claude Code·Codex CLI 직원을 고용한다. 게이트웨이와 무관하게 늘 열린다. */
+  onHireCliEmployee?: () => void;
 };
 
 function npcDetail(npc: NavigatorNpc, t: ReturnType<typeof useT>): string {
@@ -319,6 +321,15 @@ export default function WorkspaceNavigator(props: Props) {
             className="rounded-md px-2 py-2 text-xs text-primary hover:bg-surface-raised disabled:cursor-not-allowed disabled:opacity-50"
           >
             {t("game.roster.hire")}
+          </button>
+        )}
+        {props.isOwner && props.onHireCliEmployee && (
+          <button
+            type="button"
+            onClick={props.onHireCliEmployee}
+            className="rounded-md px-2 py-2 text-xs text-primary hover:bg-surface-raised"
+          >
+            {t("cliHire.open")}
           </button>
         )}
       </div>

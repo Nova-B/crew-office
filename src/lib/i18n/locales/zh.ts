@@ -2978,6 +2978,26 @@ const zh: Record<string, string> = {
     "此网关的插件不提供卡片附件列表 — 更新插件后，已完成卡片的附件也会显示在这里。",
   "artifacts.attachments.untitledCard": "已删除的卡片",
   "artifacts.chip": "成果已保存: {title}",
+  // crew-office: CLI 직원 고용
+  "cliHire.open": "雇用 CLI 员工",
+  "cliHire.title": "雇用 CLI 员工",
+  "cliHire.description":
+    "由本机安装的 Claude Code 或 Codex 担任该员工。对话记忆保存在员工自己的会话中,目前只能读取文件。",
+  "cliHire.name": "名称",
+  "cliHire.cli": "负责的 CLI",
+  "cliHire.checking": "检查中…",
+  "cliHire.installed": "已安装",
+  "cliHire.notInstalled": "未安装",
+  "cliHire.notInstalledHint": "在本机找不到所选的 CLI。请安装并登录后重试。",
+  "cliHire.model": "模型(可选)",
+  "cliHire.modelPlaceholder": "留空则使用 CLI 默认模型",
+  "cliHire.soul": "性格与职责",
+  "cliHire.soulPlaceholder": "例如:你是一名细致的后端开发者,先讲依据。",
+  "cliHire.look": "外观",
+  "cliHire.cancel": "取消",
+  "cliHire.submit": "雇用",
+  "cliHire.hiring": "雇用中…",
+  "cliHire.failed": "无法雇用该员工。",
 };
 
 export default zh;

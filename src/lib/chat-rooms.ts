@@ -158,7 +158,8 @@ async function memberDisplayNames(
     const rows = await db
       .select({ npc: npcs, profile: hermesProfiles })
       .from(npcs)
-      .innerJoin(hermesProfiles, eq(hermesProfiles.id, npcs.hermesProfileId))
+      // left join — 프로필 없는 CLI 직원도 이름이 보여야 한다(crew-office).
+      .leftJoin(hermesProfiles, eq(hermesProfiles.id, npcs.hermesProfileId))
       .where(inArray(npcs.id, npcIds));
     for (const r of rows) {
       const projected = projectNpcRow(r.npc, r.profile, "");
@@ -295,7 +296,7 @@ export async function createRoom(args: {
         : await db
             .select({ npc: npcs, profile: hermesProfiles })
             .from(npcs)
-            .innerJoin(hermesProfiles, eq(hermesProfiles.id, npcs.hermesProfileId))
+            .leftJoin(hermesProfiles, eq(hermesProfiles.id, npcs.hermesProfileId))
             .where(inArray(npcs.id, args.npcIds));
     const names = npcRows.map((r) => projectNpcRow(r.npc, r.profile, "").name);
     name = (names.join(", ") || "새 대화방").slice(0, 60);

@@ -3108,6 +3108,27 @@ const ja: Record<string, string> = {
     "このゲートウェイのプラグインはカード添付の一覧を返しません — プラグインを更新すると、完了したカードの添付もここに表示されます。",
   "artifacts.attachments.untitledCard": "削除されたカード",
   "artifacts.chip": "成果物を保存しました: {title}",
+  // crew-office: CLI 직원 고용
+  "cliHire.open": "CLI社員を雇う",
+  "cliHire.title": "CLI社員を雇う",
+  "cliHire.description":
+    "このPCにインストールされたClaude CodeまたはCodexがこの社員を担当します。会話の記憶は社員ごとのセッションに残り、現在はファイルの読み取りのみ可能です。",
+  "cliHire.name": "名前",
+  "cliHire.cli": "担当CLI",
+  "cliHire.checking": "確認中…",
+  "cliHire.installed": "インストール済み",
+  "cliHire.notInstalled": "未インストール",
+  "cliHire.notInstalledHint":
+    "選択したCLIがこのPCで見つかりません。インストールしてログインしてから再試行してください。",
+  "cliHire.model": "モデル(任意)",
+  "cliHire.modelPlaceholder": "空欄ならCLIの既定モデル",
+  "cliHire.soul": "性格・役割",
+  "cliHire.soulPlaceholder": "例:あなたは丁寧なバックエンド開発者です。根拠から話します。",
+  "cliHire.look": "外見",
+  "cliHire.cancel": "キャンセル",
+  "cliHire.submit": "雇う",
+  "cliHire.hiring": "雇用中…",
+  "cliHire.failed": "社員を雇えませんでした。",
 };
 
 export default ja;

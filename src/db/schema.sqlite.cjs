@@ -467,9 +467,10 @@ const npcs = sqliteTable(
     appearance: text("appearance"),
     adapterType: text("adapter_type").notNull().default("hermes"),
     adapterConfig: text("adapter_config"),
-    hermesProfileId: text("hermes_profile_id")
-      .notNull()
-      .references(() => hermesProfiles.id, { onDelete: "cascade" }),
+    // crew-office: NULL 이면 Hermes 프로필 없는 CLI 직원(adapter_type claude/codex)이다.
+    hermesProfileId: text("hermes_profile_id").references(() => hermesProfiles.id, {
+      onDelete: "cascade",
+    }),
     agentConfig: text("agent_config"),
     active: integer("active", { mode: "boolean" }).notNull().default(true),
     createdAt: text("created_at").$defaultFn(isoNow),

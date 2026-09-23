@@ -101,7 +101,11 @@ test("회의·1:1·방 세 경로가 같은 해석 함수에 요청자 언어를
   const room = readFileSync(new URL("./room-runtime.ts", import.meta.url), "utf8");
 
   // 설정 로더 두 곳 모두 한 함수로 조립한다 — 경로별로 규약을 따로 만들지 않는다.
-  assert.equal(handlers.match(/resolveNpcInstructions\(oc, requestLocale\)/g)?.length, 2);
+  // crew-office: 어댑터 종류도 넘긴다 — CLI 직원은 인격 층을 받고 Hermes 카드 안내는 받지 않는다.
+  assert.equal(
+    handlers.match(/resolveNpcInstructions\(oc, requestLocale, npc\.adapterType\)/g)?.length,
+    2,
+  );
   assert.equal(handlers.match(/composeNpcInstructions\(/g)?.length, 2, "해석 함수 밖 조립 없음");
   // 1:1 · 자유 회의 채팅 · 회의 토론 · 방 런타임이 소켓의 언어를 싣는다.
   assert.match(handlers, /getNpcConfig\(npcId, socketLocale\(socket\)\)/);
@@ -122,4 +126,19 @@ test("옛 대화의 JSON 등록 지시는 폐기하고 현재 확인 화면을 �
     assert.match(out, /폐기/);
     assert.match(out, /Hermes/);
   }
+});
+
+test("CLI 직원은 agent_config.soul 을 인격 층으로 받고, Hermes 카드 안내는 받지 않는다", async () => {
+  const { resolveNpcInstructions } = await import("./socket-handlers");
+  const out = resolveNpcInstructions({ soul: "You are Mina." }, "ko", "claude") ?? "";
+  assert.match(out, /<persona>\nYou are Mina\.\n<\/persona>/);
+  assert.match(out, /<team-instructions>/, "회의 규약은 그대로 받는다");
+  assert.doesNotMatch(out, /task-registration|Hermes/);
+});
+
+test("Hermes 직원은 soul 이 있어도 인격 층을 받지 않는다 — 인격의 정본은 SOUL.md 다", async () => {
+  const { resolveNpcInstructions } = await import("./socket-handlers");
+  const out = resolveNpcInstructions({ soul: "You are Mina." }, "ko", "hermes") ?? "";
+  assert.doesNotMatch(out, /<persona>/);
+  assert.match(out, /task-registration/);
 });

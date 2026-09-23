@@ -232,7 +232,7 @@ const SQLITE_BASE_SCHEMA = `
       appearance TEXT,
       adapter_type TEXT NOT NULL DEFAULT 'hermes',
       adapter_config TEXT,
-      hermes_profile_id TEXT NOT NULL REFERENCES hermes_profiles(id) ON DELETE CASCADE,
+      hermes_profile_id TEXT REFERENCES hermes_profiles(id) ON DELETE CASCADE,
       agent_config TEXT,
       active INTEGER NOT NULL DEFAULT 1,
       created_at TEXT,

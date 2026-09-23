@@ -109,6 +109,7 @@ import type { NpcChatMessage } from "@/components/NpcDialog";
 import PasswordModal from "@/components/PasswordModal";
 import ChannelSettingsModal from "@/components/ChannelSettingsModal";
 import ViewSettingsModal from "@/components/ViewSettingsModal";
+import CliEmployeeHireModal from "@/components/CliEmployeeHireModal";
 import type { NpcMotionConfig } from "@/lib/npc-motion-config";
 import type { ChatTaskDraft } from "@/components/kanban/kanban-view-model";
 import KanbanBoardModal from "@/components/kanban/KanbanBoardModal";
@@ -283,6 +284,8 @@ function GamePageInner({ onFatal }: GamePageClientProps) {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [socketConnected, setSocketConnected] = useState(false);
   const [showSharePopup, setShowSharePopup] = useState(false);
+  // crew-office: Hermes 게이트웨이 없이 CLI 직원을 고용하는 창.
+  const [showCliHire, setShowCliHire] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const appMeta = useAppMeta();
@@ -2813,6 +2816,7 @@ function GamePageInner({ onFatal }: GamePageClientProps) {
             onSetStartPosition={isOwner ? handleStartPositionSetting : undefined}
             onAddNpc={isOwner ? handleHireNpc : undefined}
             addNpcDisabled={!gatewayId}
+            onHireCliEmployee={isOwner ? () => setShowCliHire(true) : undefined}
           />
         }
         conversation={conversationPanel}
@@ -3553,6 +3557,13 @@ function GamePageInner({ onFatal }: GamePageClientProps) {
       )}
 
       {showViewSettings && <ViewSettingsModal onClose={() => setShowViewSettings(false)} />}
+      {showCliHire && channelId && (
+        <CliEmployeeHireModal
+          channelId={channelId}
+          onClose={() => setShowCliHire(false)}
+          onHired={() => void refreshNpcLists()}
+        />
+      )}
       {showChannelSettings && channel && (
         <ChannelSettingsModal
           channelId={channel.id}
