@@ -651,7 +651,7 @@ async function streamNpcResponse(
 
     try {
       const [cwd, resumeSessionRef] = await Promise.all([
-        ensureEmployeeWorkspace(npcId),
+        isCliEmployeeAdapter(adapterType) ? ensureEmployeeWorkspace(npcId) : undefined,
         getStoredNpcSessionRef(npcId, userId, contextKey, adapterType),
       ]);
       const { response, session } = await executeDmAdapter(
@@ -818,7 +818,10 @@ async function streamMeetingNpcResponse(
         persistHermesSessionRef(npcId, userId, hermesContextKey, session.sessionRef);
     } else {
       // dispatchKind === "registry"
-      const adapter = withEmployeeWorkspace(adapterRegistry.get(adapterType), npcId);
+      const registered = adapterRegistry.get(adapterType);
+      const adapter = isCliEmployeeAdapter(adapterType)
+        ? withEmployeeWorkspace(registered, npcId)
+        : registered;
       const { response } = await adapter.execute({
         sessionKey,
         prompt,

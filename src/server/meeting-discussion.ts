@@ -4,6 +4,7 @@ import type { MeetingSpatialCoordinator } from "./meeting-spatial-coordinator";
 import { MEETING_NPC_STREAM_EVENT } from "./meeting-socket";
 import type { AdapterRegistry, NpcAdapter } from "../lib/adapters/types";
 import { withEmployeeWorkspace } from "../lib/adapters/employee-workspace";
+import { isCliEmployeeAdapter } from "../lib/cli-employees";
 import {
   ConversationEngine,
   type EngineParticipant,
@@ -318,8 +319,11 @@ export async function resolveNpcAdapter(
   }
   return {
     participant: participantBase,
-    // CLI 직원은 회의에서도 자기 작업 폴더에서 돈다(employee-workspace.ts).
-    adapter: withEmployeeWorkspace(ctx.adapterRegistry.get(adapterType), npc.id),
+    // CLI 직원은 회의에서도 자기 작업 폴더에서 돈다(employee-workspace.ts). 작업 폴더가 의미 있는 것은
+    // claude·codex 뿐이다 — 다른 어댑터까지 감싸면 쓸데없는 폴더가 런타임 홈에 생긴다.
+    adapter: isCliEmployeeAdapter(adapterType)
+      ? withEmployeeWorkspace(ctx.adapterRegistry.get(adapterType), npc.id)
+      : ctx.adapterRegistry.get(adapterType),
     sessionKey,
   };
 }
