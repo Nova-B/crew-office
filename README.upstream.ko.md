@@ -1,6 +1,6 @@
 # DeskRPG
 
-English README: [README.md](README.md)
+English README: [README.upstream.md](README.upstream.md)
 
 <img src="public/readme/home-screenshot.png" alt="DeskRPG 홈 화면" width="100%" />
 

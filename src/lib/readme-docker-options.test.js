@@ -10,7 +10,8 @@ const path = require("node:path");
 const test = require("node:test");
 
 const ROOT = path.join(__dirname, "..", "..");
-const READMES = ["README.md", "README.ko.md"];
+// crew-office: upstream README 는 README.upstream*.md 로 옮겼다.
+const READMES = ["README.upstream.md", "README.upstream.ko.md"];
 
 /** README 안의 `docker compose …` 명령 줄 전부. */
 function composeCommands(readme) {
