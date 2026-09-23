@@ -1,0 +1,13 @@
+﻿{
+    "mcpServers":  {
+                       "office":  {
+                                      "args":  [
+                                                   "C:/Users/user/Desktop/Dev/crew-office/spikes/phase0/office-mcp.cjs"
+                                               ],
+                                      "env":  {
+                                                  "OFFICE_EMPLOYEE":  "claude-A"
+                                              },
+                                      "command":  "node"
+                                  }
+                   }
+}

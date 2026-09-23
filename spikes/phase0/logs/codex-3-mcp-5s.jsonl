@@ -1,0 +1,7 @@
+{"type":"thread.started","thread_id":"01a0cc9e-9602-7dc3-b624-6da666fee7c0"}
+{"type":"turn.started"}
+{"type":"item.completed","item":{"id":"item_0","type":"agent_message","text":"I’ll send Bob the question with a 5-second delay, then relay his reply exactly."}}
+{"type":"item.started","item":{"id":"item_1","type":"mcp_tool_call","server":"office","tool":"ask","arguments":{"to":"Bob","question":"what is the password?","delay_s":5},"result":null,"error":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_1","type":"mcp_tool_call","server":"office","tool":"ask","arguments":{"to":"Bob","question":"what is the password?","delay_s":5},"result":null,"error":{"message":"MCP tool call requires approval, but approval policy is never"},"status":"failed"}}
+{"type":"item.completed","item":{"id":"item_2","type":"agent_message","text":"I couldn’t ask Bob: the office tool required approval, but approval is unavailable. I don’t have a reply to quote."}}
+{"type":"turn.completed","usage":{"input_tokens":46921,"cached_input_tokens":38912,"cache_write_input_tokens":0,"output_tokens":177,"reasoning_output_tokens":20}}

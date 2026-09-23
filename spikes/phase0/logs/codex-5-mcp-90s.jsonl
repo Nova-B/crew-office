@@ -1,0 +1,8 @@
+{"type":"thread.started","thread_id":"01a0cc9f-77f2-76c3-87ef-b26f2d9c50ca"}
+{"type":"turn.started"}
+{"type":"item.completed","item":{"id":"item_0","type":"agent_message","text":"I’ll send the question through the office ask tool and relay Bob’s reply verbatim."}}
+{"type":"item.started","item":{"id":"item_1","type":"mcp_tool_call","server":"office","tool":"ask","arguments":{"to":"Bob","question":"what is the password?","delay_s":90},"result":null,"error":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_2","type":"agent_message","text":"The office tool is still waiting for Bob’s delayed response."}}
+{"type":"item.completed","item":{"id":"item_1","type":"mcp_tool_call","server":"office","tool":"ask","arguments":{"to":"Bob","question":"what is the password?","delay_s":90},"result":{"content":[{"type":"text","text":"Bob says: the answer is PELICAN-90"}],"structured_content":null},"error":null,"status":"completed"}}
+{"type":"item.completed","item":{"id":"item_3","type":"agent_message","text":"Bob says: the answer is PELICAN-90"}}
+{"type":"turn.completed","usage":{"input_tokens":126625,"cached_input_tokens":109568,"cache_write_input_tokens":0,"output_tokens":305,"reasoning_output_tokens":8}}

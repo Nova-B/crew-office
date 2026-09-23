@@ -1,0 +1,9 @@
+claude {"shell":false} -> ERROR ENOENT
+codex {"shell":false} -> ERROR ENOENT
+claude.cmd {"shell":false} -> THROW EINVAL
+codex {"shell":false} -> exit -4058 
+claude {"shell":false} -> exit -4058 
+claude {"shell":true} -> exit 0 2.1.280 (Claude Code)
+codex {"shell":true} -> exit 0 codex-cli 0.156.1
+claude.exe direct -> 0 2.1.280 (Claude Code) undefined
+node codex.js direct -> 0 codex-cli 0.156.1 undefined

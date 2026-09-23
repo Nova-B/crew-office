@@ -1,0 +1,29 @@
+2026-09-23T04:55:07.210Z [claude-A pid=21336] server started
+2026-09-23T04:55:07.269Z [claude-A pid=21336] initialize client={"name":"claude-code","title":"Claude Code","version":"2.1.280","description":"Anthropic's agentic coding tool","websiteUrl":"https://claude.com/claude-code"} proto=2025-11-25
+2026-09-23T04:55:07.291Z [claude-A pid=21336] notification notifications/initialized {}
+2026-09-23T04:55:12.875Z [claude-A pid=21336] ask START id=2 to=Bob delay_s=5 q="what is the password?"
+2026-09-23T04:55:17.891Z [claude-A pid=21336] ask DONE id=2 waited_ms=5016
+2026-09-23T04:55:19.118Z [claude-A pid=21336] stdin closed (client disconnected)
+2026-09-23T04:55:32.688Z [claude-A pid=7532] server started
+2026-09-23T04:55:32.761Z [claude-A pid=7532] initialize client={"name":"claude-code","title":"Claude Code","version":"2.1.280","description":"Anthropic's agentic coding tool","websiteUrl":"https://claude.com/claude-code"} proto=2025-11-25
+2026-09-23T04:55:32.785Z [claude-A pid=7532] notification notifications/initialized {}
+2026-09-23T04:55:38.258Z [claude-A pid=7532] ask START id=2 to=Bob delay_s=150 q="what is the password?"
+2026-09-23T04:55:40.584Z [codex-B pid=24564] server started
+2026-09-23T04:55:40.587Z [codex-B pid=24564] initialize client={"name":"codex-mcp-client","title":"Codex","version":"0.156.1"} proto=2025-06-18
+2026-09-23T04:55:40.588Z [codex-B pid=24564] notification notifications/initialized {}
+2026-09-23T04:56:13.298Z [codex-B pid=23864] server started
+2026-09-23T04:56:13.300Z [codex-B pid=23864] initialize client={"name":"codex-mcp-client","title":"Codex","version":"0.156.1"} proto=2025-06-18
+2026-09-23T04:56:13.302Z [codex-B pid=23864] notification notifications/initialized {}
+2026-09-23T04:56:20.265Z [codex-B pid=23864] ask START id=2 to=Bob delay_s=5 q="what is the password?"
+2026-09-23T04:56:25.273Z [codex-B pid=23864] ask DONE id=2 waited_ms=5008
+2026-09-23T04:56:38.431Z [codex-B pid=17736] server started
+2026-09-23T04:56:38.434Z [codex-B pid=17736] initialize client={"name":"codex-mcp-client","title":"Codex","version":"0.156.1"} proto=2025-06-18
+2026-09-23T04:56:38.436Z [codex-B pid=17736] notification notifications/initialized {}
+2026-09-23T04:56:45.980Z [codex-B pid=17736] ask START id=2 to=Bob delay_s=90 q="what is the password?"
+2026-09-23T04:57:38.486Z [claude-A pid=1336] server started
+2026-09-23T04:57:38.532Z [claude-A pid=1336] initialize client={"name":"claude-code","title":"Claude Code","version":"2.1.280","description":"Anthropic's agentic coding tool","websiteUrl":"https://claude.com/claude-code"} proto=2025-11-25
+2026-09-23T04:57:38.554Z [claude-A pid=1336] notification notifications/initialized {}
+2026-09-23T04:57:43.951Z [claude-A pid=1336] ask START id=2 to=Bob delay_s=60 q="status?"
+2026-09-23T04:58:08.263Z [claude-A pid=7532] ask DONE id=2 waited_ms=150005
+2026-09-23T04:58:09.598Z [claude-A pid=7532] stdin closed (client disconnected)
+2026-09-23T04:58:15.995Z [codex-B pid=17736] ask DONE id=2 waited_ms=90015

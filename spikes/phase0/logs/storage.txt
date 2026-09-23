@@ -1,0 +1,12 @@
+## session storage
+C--Users-user-Desktop-Dev-crew-office-spikes-phase0-work
+7328d6ac-9469-491d-92b1-601056ac9a3a.jsonl
+b3cb7ced-ee8f-49f9-83a3-79d7cbca84fc.jsonl
+d9e4668f-5e6b-42c7-9e48-7c49368380a5.jsonl
+codex rollout:
+/c/Users/user/.codex/sessions/2026/09/23/rollout-2026-09-23T13-54-04-01a0cc9d-1f85-7be3-b67c-c8b57593215a.jsonl
+"is_error":true
+"result":"Not logged in · Please run /login"
+{"type":"error","message":"Reconnecting... 5/5 (unexpected status 401 Unauthorized: Missing bearer or basic authentication in header, url: https://api.openai.com/v1/responses, cf-ray: a3f6f7973edaeaa3-ICN, request id: req_0473801033af43329f1e68df3e8b
+{"type":"error","message":"unexpected status 401 Unauthorized: Missing bearer or basic authentication in header, url: https://api.openai.com/v1/responses, cf-ray: a3f6f7ad1cc60d05-ICN, request id: req_90e1f81d271a4c969d4978c4c83d5e5a"}
+{"type":"turn.failed","error":{"message":"unexpected status 401 Unauthorized: Missing bearer or basic authentication in header, url: https://api.openai.com/v1/responses, cf-ray: a3f6f7ad1cc60d05-ICN, request id: req_90e1f81d271a4c969d4978c4c83d5e5a"}
