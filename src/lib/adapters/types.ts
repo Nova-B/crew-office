@@ -41,6 +41,16 @@ export interface AdapterExecuteOptions {
    * `undefined` 면 어댑터의 메모리 캐시를 쓴다. `multiParty` 턴에서는 무시된다.
    */
   resumeSessionRef?: string | null;
+  /** crew-office: 이 턴에 붙일 stdio MCP 서버 "office"(사내 메신저). CLI 백엔드만 쓴다. */
+  officeMcp?: StdioMcpServer;
+}
+
+/** CLI 가 자식 프로세스로 띄우는 MCP 서버 하나. `tools` 는 승인 없이 부를 수 있게 열어 둘 도구 이름이다. */
+export interface StdioMcpServer {
+  command: string;
+  args: string[];
+  env: Record<string, string>;
+  tools: string[];
 }
 
 export interface AdapterAttachment {

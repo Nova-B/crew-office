@@ -21,6 +21,7 @@ import type {
   AdapterHealthResult,
   AdapterSessionInfo,
   NpcAdapter,
+  StdioMcpServer,
 } from "./types";
 
 /** CLI 출력 한 줄에서 뽑아낸 사실. 어댑터별 파서가 만든다. */
@@ -40,6 +41,7 @@ export interface CliTurnContext {
   resumeRef?: string;
   instructions?: string;
   model?: string;
+  officeMcp?: StdioMcpServer;
 }
 
 interface SessionPool {
@@ -116,7 +118,12 @@ export abstract class CliSessionAdapter implements NpcAdapter {
 
     const args = [
       ...invocation.baseArgs,
-      ...this.buildArgs({ resumeRef, instructions: options.instructions, model: options.model }),
+      ...this.buildArgs({
+        resumeRef,
+        instructions: options.instructions,
+        model: options.model,
+        officeMcp: options.officeMcp,
+      }),
     ];
     const prompt = multiParty
       ? withTranscript(options.prompt, options.conversationHistory)

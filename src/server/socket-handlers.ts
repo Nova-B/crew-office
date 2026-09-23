@@ -80,7 +80,7 @@ import {
   settleMeeting,
 } from "./meeting-discussion";
 import { createResummarizer } from "./meeting-resummarize";
-import { registerRoomHandlers } from "./room-socket";
+import { broadcastRoomMessage, registerRoomHandlers } from "./room-socket";
 import { normalizeOfficeAppearance } from "@/game/three/office-appearance";
 import { AUTOMATION_SOCKET_EVENTS, getWorkingSnapshot } from "./automation-events";
 import { setChannelActive, startAutomationPollers } from "./automation-poller";
@@ -110,7 +110,19 @@ import {
   withEmployeeWorkspace,
 } from "../lib/adapters/employee-workspace.js";
 import { isCliEmployeeAdapter } from "../lib/cli-employees.js";
-import { registerRoomEmitter } from "../lib/rpc-registry.js";
+import { registerCrewMessenger, registerRoomEmitter } from "../lib/rpc-registry.js";
+import {
+  colleaguePrompt,
+  createCrewMessenger,
+  DEFAULT_ASK_TIMEOUT_MS,
+  MESSENGER_TOOLS,
+  withMessengerInstructions,
+  type Colleague,
+  type CrewMessenger,
+  type MessengerTurnContext,
+} from "./crew-messenger";
+import type { StdioMcpServer } from "../lib/adapters/types";
+import nodePath from "node:path";
 import { GeminiAdapter } from "../lib/adapters/gemini-adapter.js";
 import { OpencodeAdapter as OpenCodeAdapter } from "../lib/adapters/opencode-adapter.js";
 import {
@@ -125,6 +137,95 @@ import {
 } from "./hermes-dispatch";
 
 export const adapterRegistry = new AdapterRegistry();
+
+// ---------------------------------------------------------------------------
+// crew-office: 사내 메신저 — CLI 직원이 턴 도중 동료에게 묻는다(crew-messenger.ts).
+// ---------------------------------------------------------------------------
+
+let crewMessenger: CrewMessenger | null = null;
+let crewIo: Server | null = null;
+
+/** CLI 가 띄울 office MCP 브리지. 앱 주소는 실제로 열린 포트에서 읽는다 — dev 서버는 포트를 올려 뜰 수 있다. */
+function officeMcpFor(token: string): StdioMcpServer | undefined {
+  const address = crewIo?.httpServer?.address();
+  if (!address || typeof address === "string") return undefined;
+  return {
+    command: process.execPath,
+    args: [nodePath.join(process.cwd(), "src", "server", "crew-office-mcp.cjs")],
+    env: { CREW_OFFICE_URL: `http://127.0.0.1:${address.port}`, CREW_OFFICE_TOKEN: token },
+    tools: [...MESSENGER_TOOLS],
+  };
+}
+
+/** 메신저를 붙일 수 있으면 토큰·MCP·지시를 만들어 준다. 턴이 끝나면 release 로 토큰을 회수한다. */
+function messengerForTurn(ctx: MessengerTurnContext, instructions: string | undefined) {
+  const none = { instructions, officeMcp: undefined, release: () => {} };
+  if (!crewMessenger) return none;
+  const messenger = crewMessenger;
+  const token = messenger.mint(ctx);
+  const officeMcp = officeMcpFor(token);
+  if (!officeMcp) {
+    messenger.revoke(token);
+    return none;
+  }
+  return {
+    instructions: withMessengerInstructions(instructions),
+    officeMcp,
+    release: () => messenger.revoke(token),
+  };
+}
+
+/** 동료 B 의 "메신저 세션" 턴. 사람과의 1:1 세션과 갈라 두려고 contextKey 를 "inbox" 로 둔다. */
+async function runColleagueTurn(
+  io: Server,
+  args: {
+    from: Colleague;
+    to: Colleague;
+    question: string;
+    ctx: MessengerTurnContext;
+    childToken: string;
+  },
+): Promise<string> {
+  const { from, to, question, ctx, childToken } = args;
+  const config = await getNpcConfig(to.id);
+  if (!config || !adapterRegistry.has(config.adapterType)) throw new Error("colleague unavailable");
+  const adapter = adapterRegistry.get(config.adapterType);
+  const contextKey = "inbox";
+  const [cwd, resumeSessionRef] = await Promise.all([
+    ensureEmployeeWorkspace(to.id),
+    getStoredNpcSessionRef(to.id, ctx.userId, contextKey, config.adapterType),
+  ]);
+  const officeMcp = officeMcpFor(childToken);
+  const activity = (key: string | null) =>
+    io.to(ctx.channelId).emit("npc:activity", { npcId: to.id, activityKey: key });
+  activity("npc.activity.thinking");
+  try {
+    const { response, session } = await adapter.execute({
+      sessionKey: `${to.id}-inbox`,
+      prompt: colleaguePrompt(from.name, question),
+      instructions: officeMcp
+        ? withMessengerInstructions(config.instructions)
+        : config.instructions,
+      model:
+        typeof config.adapterConfig.model === "string" ? config.adapterConfig.model : undefined,
+      cwd,
+      resumeSessionRef,
+      officeMcp,
+      timeoutMs: DEFAULT_ASK_TIMEOUT_MS,
+      onToolProgress: (tool: string) => activity(describeActivity(tool)?.key ?? null),
+    });
+    await persistNpcSessionRef(
+      to.id,
+      ctx.userId,
+      contextKey,
+      config.adapterType,
+      session.sessionRef,
+    );
+    return response;
+  } finally {
+    activity(null);
+  }
+}
 
 // Register CLI adapters when the corresponding local CLI is installed.
 for (const AdapterClass of [ClaudeAdapter, CodexAdapter, GeminiAdapter, OpenCodeAdapter]) {
@@ -648,18 +749,27 @@ async function streamNpcResponse(
     // CLI 직원의 세션은 Hermes 와 같은 npc_sessions 행 규약(contextKey)으로 저장한다. 재개할 세션은
     // 메모리 캐시가 아니라 DB 가 정한다 — 서버를 재시작해도 직원이 기억을 잇는다.
     const contextKey = deriveHermesContextKey(sessionKey, sessionKeyPrefix || npcId);
+    let messenger: ReturnType<typeof messengerForTurn> | null = null;
 
     try {
       const [cwd, resumeSessionRef] = await Promise.all([
         isCliEmployeeAdapter(adapterType) ? ensureEmployeeWorkspace(npcId) : undefined,
         getStoredNpcSessionRef(npcId, userId, contextKey, adapterType),
       ]);
+      // 사람이 연 턴(depth 0)에 사내 메신저를 붙인다 — 이 턴 안에서 동료에게 물을 수 있다.
+      messenger = isCliEmployeeAdapter(adapterType)
+        ? messengerForTurn(
+            { npcId, channelId: npcConfig._channelId, userId, depth: 0 },
+            npcConfig.instructions,
+          )
+        : null;
       const { response, session } = await executeDmAdapter(
         adapter,
         {
           sessionKey,
           prompt,
-          instructions: npcConfig.instructions,
+          instructions: messenger ? messenger.instructions : npcConfig.instructions,
+          officeMcp: messenger?.officeMcp,
           attachments,
           model:
             typeof npcConfig.adapterConfig.model === "string"
@@ -675,7 +785,8 @@ async function streamNpcResponse(
             const notice = describeActivity(toolName);
             socket.emit("npc:activity", { npcId, activityKey: notice?.key ?? null });
           },
-          timeoutMs: 180_000,
+          // 동료 답을 기다리는 동안(최대 150초)에도 턴이 끊기지 않게 CLI 직원은 넉넉히 준다.
+          timeoutMs: messenger?.officeMcp ? 480_000 : 180_000,
         },
         undefined,
         signal,
@@ -688,6 +799,7 @@ async function streamNpcResponse(
       emitNpcSystemResponse(socket, npcId, gatewayFailureMessageCode(err));
       return "";
     } finally {
+      messenger?.release();
       socket.emit("npc:activity", { npcId, activityKey: null });
     }
   } else {
@@ -1070,6 +1182,29 @@ async function isChannelOwner(channelId: string, userId: string): Promise<boolea
 export function setupSocketHandlers(io: Server) {
   // crew-office: API 라우트(CLI 직원 고용 등)가 같은 프로세스에서 방 이벤트를 보낼 수 있게 한다.
   registerRoomEmitter((room, event, payload) => io.to(room).emit(event, payload));
+  crewIo = io;
+  crewMessenger = createCrewMessenger({
+    listColleagues: async (channelId) =>
+      (await selectChannelNpcs(channelId, { roster: true, includeDormant: false }))
+        .filter((npc) => isCliEmployeeAdapter(npc.adapterType))
+        .map((npc) => ({ id: npc.id, name: npc.name, adapterType: npc.adapterType })),
+    runColleagueTurn: (turn) => runColleagueTurn(io, turn),
+    // 동료끼리 주고받은 말은 오피스 전체 방에 올려 사람이 읽게 한다.
+    post: async (channelId, sender, content) => {
+      const ownerId = await chatRooms.getChannelOwnerId(channelId);
+      if (!ownerId) return;
+      const room = await chatRooms.ensureOfficeRoom(channelId, ownerId);
+      const message = await chatRooms.appendRoomMessage({
+        roomId: room.id,
+        senderKind: "npc",
+        senderId: sender.id,
+        senderName: sender.name,
+        content,
+      });
+      broadcastRoomMessage(io, room.id, message);
+    },
+  });
+  registerCrewMessenger(crewMessenger.call);
   const loadMotionLayout = async (channelId: string) => {
     const [[channel], channelNpcs] = await Promise.all([
       db

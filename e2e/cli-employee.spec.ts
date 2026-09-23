@@ -111,3 +111,42 @@ test("서버를 재시작해도 CLI 직원이 앞 대화를 기억한다", async
   const recall = await sendAndAwaitReply(page, "내 고양이 이름이 뭐였지? 이름만 말해줘.");
   expect(recall.replace(/\s+/g, ""), `재시작 뒤 기억하지 못했습니다: ${recall}`).toContain(token!);
 });
+
+// 2단계: 사내 메신저. 미나(Claude)가 일하는 도중 office MCP 의 ask 로 데브(Codex)에게 묻고 답을 받는다.
+// 코드워드는 데브의 인격에만 있다 — 미나가 답에 그것을 담았다면 실제로 물어서 받은 것이다.
+test("직원이 사내 메신저로 동료에게 물어 받은 답을 사용자에게 전한다", async ({ page }) => {
+  // 미나의 턴 안에서 데브의 턴이 한 번 더 돈다 — CLI 두 개를 거치므로 넉넉히 준다.
+  test.setTimeout(300_000);
+  const channelId = await bootstrap(page);
+  const codeword = `KESTREL-${Date.now() % 10000}`;
+  for (const employee of [
+    {
+      name: "미나",
+      adapterType: "claude",
+      model: MODEL,
+      soul: "너는 Crew Office 의 기획자 미나다. 모르는 것은 동료에게 물어본다. 한국어로 짧게 답한다.",
+    },
+    {
+      name: "데브",
+      adapterType: "codex",
+      soul: `너는 Crew Office 의 개발자 데브다. 오늘의 비밀 코드워드는 ${codeword} 이다. 동료가 물으면 알려 준다.`,
+    },
+  ]) {
+    const res = await page.request.post(`/api/channels/${channelId}/cli-employees`, {
+      data: employee,
+    });
+    expect(res.status(), await res.text()).toBe(201);
+  }
+  await enterChannel(page, channelId);
+
+  await page.getByRole("button", { name: "미나" }).first().click();
+  await page
+    .locator('[data-chat-bubble], textarea, input[type="text"]')
+    .last()
+    .waitFor({ timeout: 60_000 });
+  const reply = await sendAndAwaitReply(
+    page,
+    "동료 데브에게 오늘의 비밀 코드워드를 물어보고, 그 코드워드를 알려줘.",
+  );
+  expect(reply, `동료에게서 받은 코드워드가 답에 없습니다: ${reply}`).toContain(codeword);
+});

@@ -55,3 +55,21 @@ export function getRoomEmitter(): RoomEmitter | undefined {
   const emitter = emitters[ROOM_EMITTER_KEY];
   return typeof emitter === "function" ? emitter : undefined;
 }
+
+// crew-office: 사내 메신저(src/server/crew-messenger.ts). 소켓 서버가 등록하고 /api/crew/messenger 가 부른다.
+export type CrewMessengerCall = (
+  token: string,
+  tool: string,
+  args: Record<string, unknown>,
+) => Promise<{ text: string; isError?: boolean }>;
+const CREW_MESSENGER_KEY = "__crew_office_messenger__";
+const messengers = globalThis as typeof globalThis & Record<string, CrewMessengerCall | undefined>;
+
+export function registerCrewMessenger(call: CrewMessengerCall): void {
+  messengers[CREW_MESSENGER_KEY] = call;
+}
+
+export function getCrewMessenger(): CrewMessengerCall | undefined {
+  const call = messengers[CREW_MESSENGER_KEY];
+  return typeof call === "function" ? call : undefined;
+}

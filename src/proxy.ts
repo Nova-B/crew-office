@@ -1,7 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyJWT } from "@/lib/jwt";
 
-const PUBLIC_PATHS = ["/", "/auth", "/api/auth", "/api/health", "/robots.txt", "/sitemap.xml"];
+// crew-office: /api/crew/messenger 는 CLI 직원의 MCP 브리지가 쿠키 없이 부른다 — 라우트가 메신저 토큰으로 인증한다.
+const PUBLIC_PATHS = [
+  "/",
+  "/auth",
+  "/api/auth",
+  "/api/health",
+  "/api/crew/messenger",
+  "/robots.txt",
+  "/sitemap.xml",
+];
 
 function isPublic(pathname: string): boolean {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));

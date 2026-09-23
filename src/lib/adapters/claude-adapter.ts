@@ -22,7 +22,7 @@ type ClaudeLine = {
 export class ClaudeAdapter extends CliSessionAdapter {
   readonly type = "claude";
 
-  buildArgs({ resumeRef, instructions, model }: CliTurnContext): string[] {
+  buildArgs({ resumeRef, instructions, model, officeMcp }: CliTurnContext): string[] {
     // --verbose 는 선택이 아니다: -p 에서 stream-json 은 --verbose 없이 거부된다.
     // 권한 확인을 끄는 옵션은 쓰지 않는다 — -p 의 기본 권한 모드는 읽기 도구만 통과시킨다.
     // 직원별 권한 프로필(기획안 §5.2)이 생기면 그때 넓힌다.
@@ -37,6 +37,18 @@ export class ClaudeAdapter extends CliSessionAdapter {
     if (model) args.push("--model", model);
     if (resumeRef) args.push("--resume", resumeRef);
     if (instructions) args.push("--append-system-prompt", instructions);
+    if (officeMcp) {
+      // 인라인 JSON 으로 넘긴다(파일 없이). --strict-mcp-config 로 사용자 전역 MCP 서버는 끌어오지 않는다 —
+      // 직원에게는 의도한 서버만 보여야 한다(기획안 §5.3). office 도구는 승인 없이 부르게 연다.
+      const { command, args: serverArgs, env } = officeMcp;
+      args.push(
+        "--mcp-config",
+        JSON.stringify({ mcpServers: { office: { command, args: serverArgs, env } } }),
+        "--strict-mcp-config",
+        "--allowedTools",
+        officeMcp.tools.map((tool) => `mcp__office__${tool}`).join(","),
+      );
+    }
     return args;
   }
 

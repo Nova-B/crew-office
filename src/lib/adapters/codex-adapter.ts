@@ -1,4 +1,5 @@
 import { CliSessionAdapter, type CliEvent, type CliTurnContext } from "./cli-session-adapter";
+import type { StdioMcpServer } from "./types";
 
 type CodexItem = {
   type?: string;
@@ -14,6 +15,24 @@ type CodexLine = {
   item?: CodexItem;
   error?: { message?: string };
 };
+
+/**
+ * `-c` 값은 TOML 로 파싱된다. JSON 문자열·문자열 배열은 그대로 TOML 이고, env 는 인라인 테이블로 만든다.
+ * 도구마다 approval_mode="approve" 가 없으면 exec 모드에서 호출이 "approval policy is never" 로
+ * 실패한다(phase0 실측). 대기 제한은 메신저의 150초보다 넉넉히 둔다.
+ */
+function officeMcpConfig({ command, args, env, tools }: StdioMcpServer): string[] {
+  const table = Object.entries(env)
+    .map(([key, value]) => `${key}=${JSON.stringify(value)}`)
+    .join(", ");
+  return [
+    ["mcp_servers.office.command", JSON.stringify(command)],
+    ["mcp_servers.office.args", JSON.stringify(args)],
+    ["mcp_servers.office.env", `{ ${table} }`],
+    ["mcp_servers.office.tool_timeout_sec", "300"],
+    ...tools.map((tool) => [`mcp_servers.office.tools.${tool}.approval_mode`, '"approve"']),
+  ].flatMap(([key, value]) => ["-c", `${key}=${value}`]);
+}
 
 function toolOf(item: CodexItem): { name: string; preview?: string } | null {
   switch (item.type) {
@@ -38,7 +57,7 @@ function toolOf(item: CodexItem): { name: string; preview?: string } | null {
 export class CodexAdapter extends CliSessionAdapter {
   readonly type = "codex";
 
-  buildArgs({ resumeRef, instructions, model }: CliTurnContext): string[] {
+  buildArgs({ resumeRef, instructions, model, officeMcp }: CliTurnContext): string[] {
     const args = resumeRef ? ["exec", "resume", resumeRef] : ["exec"];
     // 직원 작업 폴더는 git 저장소가 아닐 수 있다.
     args.push("--json", "--skip-git-repo-check");
@@ -48,6 +67,7 @@ export class CodexAdapter extends CliSessionAdapter {
     // developer_instructions 는 실측으로 시스템 지시 자리에 들어가는 것을 확인했다.
     // 값은 TOML 로 파싱된다 — JSON 문자열은 그대로 TOML 기본 문자열이다.
     if (instructions) args.push("-c", `developer_instructions=${JSON.stringify(instructions)}`);
+    if (officeMcp) args.push(...officeMcpConfig(officeMcp));
     args.push("-");
     return args;
   }

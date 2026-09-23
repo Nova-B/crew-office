@@ -228,3 +228,49 @@ test("CLI 를 못 찾으면 실행은 실패하고 연결 검사는 not_installe
   await assert.rejects(adapter.execute({ sessionKey: "k", prompt: "p" }), /not found/);
   assert.equal((await adapter.testConnection({})).status, "not_installed");
 });
+
+const OFFICE = {
+  command: "C:/node.exe",
+  args: ["C:/app/crew-office-mcp.cjs"],
+  env: { CREW_OFFICE_URL: "http://127.0.0.1:3000", CREW_OFFICE_TOKEN: "t0k" },
+  tools: ["list_colleagues", "ask"],
+};
+
+test("Claude: office MCP 는 인라인 설정·strict·도구 허용으로 붙인다", () => {
+  const args = new ClaudeAdapter().buildArgs({ officeMcp: OFFICE });
+  const config = JSON.parse(flagValue(args, "--mcp-config")) as {
+    mcpServers: { office: { command: string; args: string[]; env: Record<string, string> } };
+  };
+  assert.deepEqual(config.mcpServers.office, {
+    command: OFFICE.command,
+    args: OFFICE.args,
+    env: OFFICE.env,
+  });
+  assert.ok(args.includes("--strict-mcp-config"), "사용자 전역 MCP 서버는 직원에게 보이지 않는다");
+  assert.equal(flagValue(args, "--allowedTools"), "mcp__office__list_colleagues,mcp__office__ask");
+});
+
+test("Codex: office MCP 는 -c 설정과 도구별 자동 승인으로 붙이고, 프롬프트 표시(-)는 맨 끝이다", () => {
+  const args = new CodexAdapter().buildArgs({ officeMcp: OFFICE });
+  const configs = args.flatMap((a, i) => (args[i - 1] === "-c" ? [a] : []));
+  assert.ok(configs.includes(`mcp_servers.office.command=${JSON.stringify(OFFICE.command)}`));
+  assert.ok(configs.includes(`mcp_servers.office.args=${JSON.stringify(OFFICE.args)}`));
+  assert.ok(
+    configs.includes(
+      'mcp_servers.office.env={ CREW_OFFICE_URL="http://127.0.0.1:3000", CREW_OFFICE_TOKEN="t0k" }',
+    ),
+  );
+  assert.ok(configs.includes('mcp_servers.office.tools.ask.approval_mode="approve"'));
+  assert.ok(configs.includes('mcp_servers.office.tools.list_colleagues.approval_mode="approve"'));
+  assert.equal(args.at(-1), "-");
+});
+
+test("officeMcp 옵션은 어댑터 인자까지 전달된다", async () => {
+  const { pool, requests } = fakePool([{ stdout: fixture("claude-text.jsonl") }]);
+  await new ClaudeAdapter({ pool, resolve: found }).execute({
+    sessionKey: "k",
+    prompt: "p",
+    officeMcp: OFFICE,
+  });
+  assert.ok(requests[0].args.includes("--strict-mcp-config"));
+});
