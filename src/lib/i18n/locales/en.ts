@@ -3116,6 +3116,14 @@ const en: Record<string, string> = {
   "cliHire.submit": "Hire",
   "cliHire.hiring": "Hiring…",
   "cliHire.failed": "Could not hire the employee.",
+  // crew-office: 폭주 방지 제어
+  "npc.crewPaused": "CLI employees in this office are paused. Resume them before talking.",
+  "npc.cliError":
+    "The CLI employee could not answer. Check that the CLI is installed and signed in, and see the server log.",
+  "crew.pause": "Pause all CLI employees",
+  "crew.resume": "Resume CLI employees",
+  "crew.pausedBanner": "CLI employees are paused — no new work will start.",
+  "crew.asksUsage": "Colleague asks {used}/{limit} (last hour)",
 };
 
 export default en;

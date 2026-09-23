@@ -34,6 +34,8 @@ export interface CrewMessengerDeps {
   }): Promise<string>;
   /** 오피스 전체 방에 직원 이름으로 한 줄 올린다. 실패해도 묻기는 계속한다. */
   post(channelId: string, sender: Colleague, content: string): Promise<void>;
+  /** 묻기를 막을 이유(일시정지·한도)가 있으면 그 이유를 돌려준다. crew-control.ts 가 정한다. */
+  guard?(ctx: MessengerTurnContext): string | null;
   timeoutMs?: number;
   maxDepth?: number;
 }
@@ -124,6 +126,8 @@ export function createCrewMessenger(deps: CrewMessengerDeps) {
         isError: true,
       };
     }
+    const denied = deps.guard?.(ctx);
+    if (denied) return { text: denied, isError: true };
 
     await deps.post(ctx.channelId, self, `@${found.name} ${question}`).catch(() => undefined);
     const childToken = mint({ ...ctx, npcId: found.id, depth: ctx.depth + 1 });

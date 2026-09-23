@@ -67,3 +67,20 @@ test("terminal errors remain visible and do not animate", async () => {
   assert.doesNotMatch(el.textContent ?? "", /adapter_error/);
   assert.equal(el.querySelector(".animate-pulse"), null);
 });
+
+test("실패 이유가 알려진 코드면 '실패' 대신 그 안내를 보여 준다", async () => {
+  const el = document.createElement("div");
+  document.body.appendChild(el);
+  const root = createRoot(el);
+  await act(async () =>
+    root.render(
+      <I18nProvider>
+        <ResponseProgress
+          responses={[{ ...responses[0], status: "failed", content: "", error: "crew_paused" }]}
+        />
+      </I18nProvider>,
+    ),
+  );
+  // I18nProvider 의 기본 로케일 문구가 무엇이든, 일반 "실패/Failed" 한 단어가 아니라 일시정지 안내여야 한다.
+  assert.match(el.textContent ?? "", /Sophie: .*(paused|일시정지)/i);
+});

@@ -122,6 +122,7 @@ import {
   type MessengerTurnContext,
 } from "./crew-messenger";
 import type { StdioMcpServer } from "../lib/adapters/types";
+import { createCrewControl } from "./crew-control";
 import nodePath from "node:path";
 import { GeminiAdapter } from "../lib/adapters/gemini-adapter.js";
 import { OpencodeAdapter as OpenCodeAdapter } from "../lib/adapters/opencode-adapter.js";
@@ -144,6 +145,28 @@ export const adapterRegistry = new AdapterRegistry();
 
 let crewMessenger: CrewMessenger | null = null;
 let crewIo: Server | null = null;
+// 폭주 방지: 오피스별 전체 일시정지와 동료 묻기 한도(crew-control.ts).
+const crewControl = createCrewControl();
+
+/** 오피스의 제어 상태를 그 오피스의 모든 화면에 알린다. */
+function broadcastCrewState(channelId: string): void {
+  crewIo?.to(channelId).emit("crew:state", { channelId, ...crewControl.state(channelId) });
+}
+
+/** 사람이 읽으라고 오피스 전체 방에 시스템 알림을 한 줄 남긴다. */
+async function postCrewNotice(io: Server, channelId: string, content: string): Promise<void> {
+  const ownerId = await chatRooms.getChannelOwnerId(channelId);
+  if (!ownerId) return;
+  const room = await chatRooms.ensureOfficeRoom(channelId, ownerId);
+  const message = await chatRooms.appendRoomMessage({
+    roomId: room.id,
+    senderKind: "system",
+    senderId: null,
+    senderName: "Crew Office",
+    content,
+  });
+  broadcastRoomMessage(io, room.id, message);
+}
 
 /** CLI 가 띄울 office MCP 브리지. 앱 주소는 실제로 열린 포트에서 읽는다 — dev 서버는 포트를 올려 뜰 수 있다. */
 function officeMcpFor(token: string): StdioMcpServer | undefined {
@@ -198,10 +221,12 @@ async function runColleagueTurn(
   const officeMcp = officeMcpFor(childToken);
   const activity = (key: string | null) =>
     io.to(ctx.channelId).emit("npc:activity", { npcId: to.id, activityKey: key });
+  const sessionKey = `${to.id}-inbox`;
+  const untrack = crewControl.track(ctx.channelId, () => void adapter.abort?.(sessionKey));
   activity("npc.activity.thinking");
   try {
     const { response, session } = await adapter.execute({
-      sessionKey: `${to.id}-inbox`,
+      sessionKey,
       prompt: colleaguePrompt(from.name, question),
       instructions: officeMcp
         ? withMessengerInstructions(config.instructions)
@@ -223,6 +248,7 @@ async function runColleagueTurn(
     );
     return response;
   } finally {
+    untrack();
     activity(null);
   }
 }
@@ -750,6 +776,15 @@ async function streamNpcResponse(
     // 메모리 캐시가 아니라 DB 가 정한다 — 서버를 재시작해도 직원이 기억을 잇는다.
     const contextKey = deriveHermesContextKey(sessionKey, sessionKeyPrefix || npcId);
     let messenger: ReturnType<typeof messengerForTurn> | null = null;
+    const isCli = isCliEmployeeAdapter(adapterType);
+    const channelId = npcConfig._channelId;
+    if (isCli && crewControl.isPaused(channelId)) {
+      emitNpcSystemResponse(socket, npcId, "crew_paused");
+      return "";
+    }
+    const untrack = isCli
+      ? crewControl.track(channelId, () => void adapter.abort?.(sessionKey))
+      : () => {};
 
     try {
       const [cwd, resumeSessionRef] = await Promise.all([
@@ -796,9 +831,19 @@ async function streamNpcResponse(
       return response || "";
     } catch (err) {
       console.error("[npc] CLI adapter error for " + npcId + ":", err);
-      emitNpcSystemResponse(socket, npcId, gatewayFailureMessageCode(err));
+      // CLI 직원에게 "게이트웨이" 문구는 맞지 않는다 — 일시정지로 멈췄는지, CLI 가 실패했는지로 알린다.
+      emitNpcSystemResponse(
+        socket,
+        npcId,
+        isCli
+          ? crewControl.isPaused(channelId)
+            ? "crew_paused"
+            : "cli_error"
+          : gatewayFailureMessageCode(err),
+      );
       return "";
     } finally {
+      untrack();
       messenger?.release();
       socket.emit("npc:activity", { npcId, activityKey: null });
     }
@@ -1189,6 +1234,22 @@ export function setupSocketHandlers(io: Server) {
         .filter((npc) => isCliEmployeeAdapter(npc.adapterType))
         .map((npc) => ({ id: npc.id, name: npc.name, adapterType: npc.adapterType })),
     runColleagueTurn: (turn) => runColleagueTurn(io, turn),
+    guard: (ctx) => {
+      if (crewControl.isPaused(ctx.channelId)) {
+        return "이 오피스는 일시정지 중입니다. 동료에게 묻지 말고 지금 아는 것으로 답하세요.";
+      }
+      if (!crewControl.consumeAsk(ctx.channelId)) {
+        const { asksLimit } = crewControl.state(ctx.channelId);
+        void postCrewNotice(
+          io,
+          ctx.channelId,
+          `동료 묻기 한도(시간당 ${asksLimit}회)에 닿아 이번 묻기를 막았습니다.`,
+        ).catch(() => undefined);
+        return `이 오피스의 동료 묻기 한도(시간당 ${asksLimit}회)에 닿았습니다. 지금 아는 것으로 답하세요.`;
+      }
+      broadcastCrewState(ctx.channelId);
+      return null;
+    },
     // 동료끼리 주고받은 말은 오피스 전체 방에 올려 사람이 읽게 한다.
     post: async (channelId, sender, content) => {
       const ownerId = await chatRooms.getChannelOwnerId(channelId);
@@ -1633,6 +1694,29 @@ export function setupSocketHandlers(io: Server) {
       if (!player) return;
       if (!(await isChannelOwner(player.mapId, user.userId))) return;
       socket.to(player.mapId).emit("map:tiles-updated", data);
+    });
+
+    // ----- crew:* (crew-office 폭주 방지 제어) -----
+    socket.on("crew:get-state", (ack: unknown) => {
+      const player = players.get(socket.id);
+      if (!player || typeof ack !== "function") return;
+      ack({ channelId: player.mapId, ...crewControl.state(player.mapId) });
+    });
+
+    socket.on("crew:set-paused", async (data: unknown) => {
+      const player = players.get(socket.id);
+      const paused = (data as { paused?: unknown } | null)?.paused;
+      if (!player || typeof paused !== "boolean") return;
+      if (!(await isChannelOwner(player.mapId, user.userId))) return;
+      const stopped = crewControl.setPaused(player.mapId, paused);
+      broadcastCrewState(player.mapId);
+      await postCrewNotice(
+        io,
+        player.mapId,
+        paused
+          ? `${user.nickname} 님이 CLI 직원을 모두 멈췄습니다${stopped ? ` (진행 중이던 작업 ${stopped}건 중단)` : ""}.`
+          : `${user.nickname} 님이 CLI 직원을 다시 움직이게 했습니다.`,
+      ).catch(() => undefined);
     });
 
     socket.on("map:layout-saved", async () => {

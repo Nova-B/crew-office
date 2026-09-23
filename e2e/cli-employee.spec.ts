@@ -150,3 +150,33 @@ test("직원이 사내 메신저로 동료에게 물어 받은 답을 사용자�
   );
   expect(reply, `동료에게서 받은 코드워드가 답에 없습니다: ${reply}`).toContain(codeword);
 });
+
+// 폭주 방지: 소유자가 CLI 직원을 모두 멈추면 새 턴이 시작되지 않는다. CLI 를 부르지 않으므로 사용량이 들지 않는다.
+test("CLI 직원을 모두 멈추면 말을 걸어도 턴이 시작되지 않고, 다시 움직이면 풀린다", async ({
+  page,
+}) => {
+  const channelId = await bootstrap(page);
+  const hired = await page.request.post(`/api/channels/${channelId}/cli-employees`, {
+    data: { name: "미나", adapterType: "claude", model: MODEL },
+  });
+  expect(hired.status(), await hired.text()).toBe(201);
+  await enterChannel(page, channelId);
+
+  await page.getByRole("button", { name: "CLI 직원 모두 멈추기" }).click();
+  // 대화창의 실패 안내도 role=status 라 배너에만 있는 문구로 좁힌다.
+  const banner = page.getByRole("status").filter({ hasText: "새 작업을 시작하지 않습니다" });
+  await expect(banner).toBeVisible();
+
+  await page.getByRole("button", { name: "미나" }).first().click();
+  const input = page.locator('textarea, input[type="text"]').last();
+  await input.waitFor({ timeout: 60_000 });
+  await input.fill("안녕?");
+  await input.press("Enter");
+  await expect(page.getByText("이 오피스의 CLI 직원이 일시정지 중입니다").first()).toBeVisible({
+    timeout: 30_000,
+  });
+
+  await page.getByRole("button", { name: "CLI 직원 다시 움직이기" }).click();
+  await expect(banner).toBeHidden();
+  await expect(page.getByRole("button", { name: "CLI 직원 모두 멈추기" })).toBeVisible();
+});

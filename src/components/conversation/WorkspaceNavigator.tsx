@@ -52,6 +52,9 @@ type Props = {
   addNpcDisabled?: boolean;
   /** crew-office: Hermes 없이 Claude Code·Codex CLI 직원을 고용한다. 게이트웨이와 무관하게 늘 열린다. */
   onHireCliEmployee?: () => void;
+  /** crew-office: CLI 직원 제어 상태. 일시정지 안내는 모두에게, 토글은 소유자에게만 보인다. */
+  crewState?: { paused: boolean; asksUsed: number; asksLimit: number } | null;
+  onToggleCrewPause?: () => void;
 };
 
 function npcDetail(npc: NavigatorNpc, t: ReturnType<typeof useT>): string {
@@ -321,6 +324,28 @@ export default function WorkspaceNavigator(props: Props) {
             className="rounded-md px-2 py-2 text-xs text-primary hover:bg-surface-raised disabled:cursor-not-allowed disabled:opacity-50"
           >
             {t("game.roster.hire")}
+          </button>
+        )}
+        {props.crewState?.paused && (
+          <p
+            role="status"
+            className="col-span-2 rounded-md bg-danger/10 px-2 py-2 text-xs text-danger"
+          >
+            {t("crew.pausedBanner")}
+          </p>
+        )}
+        {props.isOwner && props.onToggleCrewPause && props.crewState && (
+          <button
+            type="button"
+            aria-pressed={props.crewState.paused}
+            onClick={props.onToggleCrewPause}
+            title={t("crew.asksUsage", {
+              used: props.crewState.asksUsed,
+              limit: props.crewState.asksLimit,
+            })}
+            className="rounded-md px-2 py-2 text-xs text-danger hover:bg-surface-raised"
+          >
+            {props.crewState.paused ? t("crew.resume") : t("crew.pause")}
           </button>
         )}
         {props.isOwner && props.onHireCliEmployee && (

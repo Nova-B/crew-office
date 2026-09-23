@@ -3096,6 +3096,14 @@ const ko: Record<string, string> = {
   "cliHire.submit": "고용",
   "cliHire.hiring": "고용 중…",
   "cliHire.failed": "직원을 고용하지 못했습니다.",
+  // crew-office: 폭주 방지 제어
+  "npc.crewPaused":
+    "이 오피스의 CLI 직원이 일시정지 중입니다. 다시 움직이게 한 뒤 말을 걸어 주세요.",
+  "npc.cliError": "CLI 직원이 답하지 못했습니다. CLI 설치·로그인 상태와 서버 로그를 확인하세요.",
+  "crew.pause": "CLI 직원 모두 멈추기",
+  "crew.resume": "CLI 직원 다시 움직이기",
+  "crew.pausedBanner": "CLI 직원이 일시정지 중입니다 — 새 작업을 시작하지 않습니다.",
+  "crew.asksUsage": "동료 묻기 {used}/{limit} (최근 1시간)",
 };
 
 export default ko;

@@ -24,6 +24,10 @@ const NPC_RESPONSE_MESSAGE_KEYS = {
   too_many_files: "npc.tooManyFiles",
   npc_unbound: "npc.unbound",
   hermes_image_unsupported: "npc.hermesImageUnsupported",
+  /** crew-office: 오피스가 일시정지 중이라 CLI 직원 턴을 시작하지 않았거나 멈췄다. */
+  crew_paused: "npc.crewPaused",
+  /** crew-office: CLI 직원(Claude Code·Codex)이 실패했다. "게이트웨이" 문구는 CLI 직원에게 맞지 않는다. */
+  cli_error: "npc.cliError",
 } as const;
 
 export type NpcResponseMessageCode = keyof typeof NPC_RESPONSE_MESSAGE_KEYS;

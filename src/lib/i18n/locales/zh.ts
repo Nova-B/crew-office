@@ -2998,6 +2998,13 @@ const zh: Record<string, string> = {
   "cliHire.submit": "雇用",
   "cliHire.hiring": "雇用中…",
   "cliHire.failed": "无法雇用该员工。",
+  // crew-office: 폭주 방지 제어
+  "npc.crewPaused": "本办公室的 CLI 员工已暂停。请恢复后再对话。",
+  "npc.cliError": "CLI 员工未能回复。请检查 CLI 的安装与登录状态,并查看服务器日志。",
+  "crew.pause": "暂停所有 CLI 员工",
+  "crew.resume": "恢复 CLI 员工",
+  "crew.pausedBanner": "CLI 员工已暂停 — 不会开始新的工作。",
+  "crew.asksUsage": "向同事提问 {used}/{limit}(最近 1 小时)",
 };
 
 export default zh;

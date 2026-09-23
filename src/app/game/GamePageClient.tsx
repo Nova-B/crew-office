@@ -110,6 +110,8 @@ import PasswordModal from "@/components/PasswordModal";
 import ChannelSettingsModal from "@/components/ChannelSettingsModal";
 import ViewSettingsModal from "@/components/ViewSettingsModal";
 import CliEmployeeHireModal from "@/components/CliEmployeeHireModal";
+
+type CrewUiState = { paused: boolean; asksUsed: number; asksLimit: number };
 import type { NpcMotionConfig } from "@/lib/npc-motion-config";
 import type { ChatTaskDraft } from "@/components/kanban/kanban-view-model";
 import KanbanBoardModal from "@/components/kanban/KanbanBoardModal";
@@ -286,6 +288,8 @@ function GamePageInner({ onFatal }: GamePageClientProps) {
   const [showSharePopup, setShowSharePopup] = useState(false);
   // crew-office: Hermes 게이트웨이 없이 CLI 직원을 고용하는 창.
   const [showCliHire, setShowCliHire] = useState(false);
+  // crew-office: 오피스의 CLI 직원 제어 상태(전체 일시정지·동료 묻기 사용량). server/crew-control.ts 가 정본.
+  const [crewState, setCrewState] = useState<CrewUiState | null>(null);
   const [copied, setCopied] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const appMeta = useAppMeta();
@@ -710,10 +714,16 @@ function GamePageInner({ onFatal }: GamePageClientProps) {
         showToastNotification("socket-connect-error", t("game.socketConnectFailed"));
       });
 
+      // crew-office: 다른 화면에서 일시정지·재개하거나 동료 묻기가 쓰이면 채널 전체에 온다.
+      socketInstance.on("crew:state", (data: CrewUiState & { channelId: string }) => {
+        if (data.channelId === channelId) setCrewState(data);
+      });
+
       socketInstance.on("players:state", (data: { players: unknown[] }) => {
         // This acknowledgement arrives after authentication and handler registration.
         if (channelId) {
           socketInstance?.emit("room:list", { channelId });
+          socketInstance?.emit("crew:get-state", (state: CrewUiState) => setCrewState(state));
         }
         setChannelPlayers([
           {
@@ -2817,6 +2827,12 @@ function GamePageInner({ onFatal }: GamePageClientProps) {
             onAddNpc={isOwner ? handleHireNpc : undefined}
             addNpcDisabled={!gatewayId}
             onHireCliEmployee={isOwner ? () => setShowCliHire(true) : undefined}
+            crewState={crewState}
+            onToggleCrewPause={
+              isOwner && crewState
+                ? () => socket?.emit("crew:set-paused", { paused: !crewState.paused })
+                : undefined
+            }
           />
         }
         conversation={conversationPanel}

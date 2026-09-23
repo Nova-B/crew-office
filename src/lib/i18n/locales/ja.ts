@@ -3129,6 +3129,14 @@ const ja: Record<string, string> = {
   "cliHire.submit": "雇う",
   "cliHire.hiring": "雇用中…",
   "cliHire.failed": "社員を雇えませんでした。",
+  // crew-office: 폭주 방지 제어
+  "npc.crewPaused": "このオフィスのCLI社員は一時停止中です。再開してから話しかけてください。",
+  "npc.cliError":
+    "CLI社員が応答できませんでした。CLIのインストール・ログイン状態とサーバーログを確認してください。",
+  "crew.pause": "CLI社員をすべて停止",
+  "crew.resume": "CLI社員を再開",
+  "crew.pausedBanner": "CLI社員は一時停止中です — 新しい作業は始まりません。",
+  "crew.asksUsage": "同僚への質問 {used}/{limit}(直近1時間)",
 };
 
 export default ja;

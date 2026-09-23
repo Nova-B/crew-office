@@ -3,6 +3,7 @@
 import type { ChatResponse } from "@/lib/chat-response";
 import { useT } from "@/lib/i18n";
 import { isActiveChatResponse } from "@/app/game/chat-response-state";
+import { getNpcResponseMessageKey, isNpcResponseMessageCode } from "@/lib/npc-response-messages";
 import ChatBubble from "../ui/ChatBubble";
 
 type Props = {
@@ -33,7 +34,12 @@ export default function ResponseProgress({
       {!receiptOnly &&
         responses.map((response) => {
           const active = isActiveChatResponse(response);
-          const detail = t(`chat.responseStatus.${response.status}`);
+          // 실패 이유 코드(서버의 NpcResponseMessageCode)가 있으면 그 안내를 보여 준다 — "실패" 한 단어로는
+          // 일시정지·미연결·CLI 오류를 구별할 수 없다(crew-office).
+          const detail =
+            response.status === "failed" && isNpcResponseMessageCode(response.error)
+              ? t(getNpcResponseMessageKey(response.error))
+              : t(`chat.responseStatus.${response.status}`);
           return (
             <div key={response.requestId} data-response-request-id={response.requestId}>
               {response.content && (

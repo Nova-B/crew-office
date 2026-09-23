@@ -108,3 +108,11 @@ test("list_colleagues 는 자기를 뺀 동료를 보여 준다", async () => {
   const out = await messenger.call(token, "list_colleagues");
   assert.equal(out.text, "- Dev (codex)");
 });
+
+test("guard 가 이유를 돌려주면 동료의 턴을 돌리지 않고 그 이유로 거절한다", async () => {
+  const { messenger, token, turns, posts } = setup({ guard: () => "사무실이 일시정지 중입니다." });
+  const out = await messenger.call(token, "ask", { to: "Dev", question: "q" });
+  assert.deepEqual(out, { text: "사무실이 일시정지 중입니다.", isError: true });
+  assert.equal(turns.length, 0);
+  assert.equal(posts.length, 0);
+});
