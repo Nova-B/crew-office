@@ -78,7 +78,7 @@ import ChannelSettingsModal from "@/components/ChannelSettingsModal";
 import ViewSettingsModal from "@/components/ViewSettingsModal";
 import CliEmployeeHireModal from "@/components/CliEmployeeHireModal";
 
-type CrewUiState = { paused: boolean; asksUsed: number; asksLimit: number };
+type CrewUiState = { paused: boolean; asksUsed: number; asksLimit: number; handedOff?: string[] };
 import type { NpcMotionConfig } from "@/lib/npc-motion-config";
 import MinutesModal from "@/components/MinutesModal";
 import { getLocalizedErrorMessage, getLocalizedMessage } from "@/lib/i18n/error-codes";
@@ -1711,6 +1711,7 @@ function GamePageInner({ onFatal }: GamePageClientProps) {
                 active: !!npc.active,
                 placed: !!npc.placed,
                 seatNumber: npc.seatNumber ?? null,
+                adapterType: npc.adapterType,
               }),
             ),
           );
@@ -2051,6 +2052,26 @@ function GamePageInner({ onFatal }: GamePageClientProps) {
     rosterNpcs.map((npc) => ({ id: npc.id, name: npc.name, active: npc.active })),
   );
 
+  // crew-office 4단계: 직원의 1:1 세션을 터미널로 넘긴다. 서버가 새 터미널 창을 열었으면 그렇다고, 못 열었으면
+  // 직접 칠 명령을 알린다. 결과 잠금 상태는 crew:state 로 모든 화면에 온다.
+  const handleHandoffNpc = (npcId: string) => {
+    const name = rosterNpcs.find((npc) => npc.id === npcId)?.name ?? "";
+    socket?.emit(
+      "crew:handoff",
+      { npcId },
+      (result: { ok: boolean; opened?: boolean; command?: string; error?: string }) => {
+        const message = result.ok
+          ? result.opened
+            ? t("crew.handoffOpened", { name })
+            : t("crew.handoffManual", { command: result.command ?? "" })
+          : ["no_session", "busy", "not_installed"].includes(result.error ?? "")
+            ? t(`crew.handoffError.${result.error}`)
+            : t("crew.handoffError.generic");
+        showToastNotification(`crew-handoff-${npcId}`, message);
+      },
+    );
+  };
+
   const handleNavigatorNpcAction = (npcId: string, action: NpcNavigatorAction) => {
     if (action === "call") handleCallNpcById(npcId);
     else if (action === "return") handleReturnNpc(npcId);
@@ -2058,6 +2079,8 @@ function GamePageInner({ onFatal }: GamePageClientProps) {
     else if (action === "reset-chat") handleResetNpcChatById(npcId);
     else if (action === "sleep") handleSleepNpcById(npcId);
     else if (action === "wake") setNpcActiveById(npcId, true);
+    else if (action === "handoff") handleHandoffNpc(npcId);
+    else if (action === "reclaim") socket?.emit("crew:reclaim", { npcId });
   };
 
   const activeConversationRoom = roomState.rooms.find(

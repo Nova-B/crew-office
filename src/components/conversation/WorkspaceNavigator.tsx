@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { sortRooms, type RoomSummary } from "@/lib/chat-rooms-policy";
 import type { DmThreadEntry } from "@/lib/dm-threads";
 import { useT } from "@/lib/i18n";
+import { isCliEmployeeAdapter } from "@/lib/cli-employees";
 import type { RosterNpc } from "../NpcRoster";
 import ParticipantRow from "./ParticipantRow";
 
@@ -22,7 +23,8 @@ export type NavigatorPlayer = {
   appearance?: unknown;
 };
 
-export type NpcNavigatorAction = "call" | "return" | "place" | "reset-chat" | "sleep" | "wake";
+export type NpcNavigatorAction =
+  "call" | "return" | "place" | "reset-chat" | "sleep" | "wake" | "handoff" | "reclaim";
 
 type Props = {
   workspaceName: string;
@@ -50,7 +52,13 @@ type Props = {
   /** crew-office: Hermes 없이 Claude Code·Codex CLI 직원을 고용한다. 게이트웨이와 무관하게 늘 열린다. */
   onHireCliEmployee?: () => void;
   /** crew-office: CLI 직원 제어 상태. 일시정지 안내는 모두에게, 토글은 소유자에게만 보인다. */
-  crewState?: { paused: boolean; asksUsed: number; asksLimit: number } | null;
+  crewState?: {
+    paused: boolean;
+    asksUsed: number;
+    asksLimit: number;
+    /** 지금 터미널에서 사람이 조작 중인 직원 id. */
+    handedOff?: string[];
+  } | null;
   onToggleCrewPause?: () => void;
 };
 
@@ -217,7 +225,11 @@ export default function WorkspaceNavigator(props: Props) {
               <ParticipantRow
                 key={npc.id}
                 name={npc.name}
-                detail={npcDetail(npc, t)}
+                detail={
+                  props.crewState?.handedOff?.includes(npc.id)
+                    ? t("crew.handedOffStatus")
+                    : npcDetail(npc, t)
+                }
                 appearance={npc.appearance ?? null}
                 selected={npc.id === props.selectedNpcId}
                 onSelect={() => props.onSelectNpc(npc.id, npc.name)}
@@ -260,6 +272,26 @@ export default function WorkspaceNavigator(props: Props) {
               </button>
             </>
           )}
+          {/* crew-office 4단계: CLI 직원의 1:1 세션을 사람이 터미널에서 이어받는다(소유자만). */}
+          {props.isOwner &&
+            isCliEmployeeAdapter(selectedNpc.adapterType) &&
+            (props.crewState?.handedOff?.includes(selectedNpc.id) ? (
+              <button
+                role="menuitem"
+                onClick={() => action("reclaim")}
+                className="w-full rounded px-3 py-2 text-left text-sm hover:bg-surface-raised"
+              >
+                {t("crew.reclaim")}
+              </button>
+            ) : (
+              <button
+                role="menuitem"
+                onClick={() => action("handoff")}
+                className="w-full rounded px-3 py-2 text-left text-sm hover:bg-surface-raised"
+              >
+                {t("crew.handoff")}
+              </button>
+            ))}
           <button
             role="menuitem"
             onClick={() => action("reset-chat")}

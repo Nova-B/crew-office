@@ -199,3 +199,45 @@ test("로그인 후 오피스 목록으로 가고, Hermes 전용 메뉴·버튼�
   await expect(page.getByRole("button", { name: /회의실/ })).toBeVisible();
   await page.screenshot({ path: "test-results/crew-office-without-hermes.png" });
 });
+
+// 4단계: 터미널 인계. 서버를 CREW_HANDOFF_NO_TERMINAL=1 로 띄우면 창 대신 직접 칠 명령을 안내한다.
+// 넘긴 동안에는 앱이 그 직원에게 턴을 보내지 않고, 되돌리면 같은 세션으로 기억을 잇는다.
+test("CLI 직원을 터미널로 넘기면 앱은 턴을 보내지 않고, 되돌리면 같은 세션을 잇는다", async ({
+  page,
+}) => {
+  test.setTimeout(300_000);
+  const channelId = await bootstrap(page);
+  const hired = await page.request.post(`/api/channels/${channelId}/cli-employees`, {
+    data: { name: "미나", adapterType: "claude", model: MODEL },
+  });
+  expect(hired.status(), await hired.text()).toBe(201);
+  await enterChannel(page, channelId);
+
+  await page.getByRole("button", { name: "미나" }).first().click();
+  await page.locator('textarea, input[type="text"]').last().waitFor({ timeout: 60_000 });
+  const token = `라떼${Date.now() % 100000}`;
+  await sendAndAwaitReply(page, `내 강아지 이름은 ${token} 이야. 한 문장으로 짧게 대답해.`);
+
+  await page.getByRole("button", { name: "미나 관리" }).click();
+  await page.getByRole("menuitem", { name: "터미널로 넘기기" }).click();
+  await expect(page.getByText(/claude --resume [0-9a-f-]{36}/).first()).toBeVisible({
+    timeout: 30_000,
+  });
+  await expect(page.getByText("터미널에서 조작 중").first()).toBeVisible();
+
+  const input = page.locator('textarea, input[type="text"]').last();
+  await input.fill("안녕?");
+  await input.press("Enter");
+  await expect(page.getByText("이 직원은 지금 터미널에서 직접 조작 중입니다").first()).toBeVisible({
+    timeout: 30_000,
+  });
+
+  await page.getByRole("button", { name: "미나 관리" }).click();
+  await page.getByRole("menuitem", { name: "앱으로 되돌리기" }).click();
+  await expect(page.getByText("터미널에서 조작 중")).toHaveCount(0);
+
+  // 1:1 연속 전송 제한(CHAT_COOLDOWN_MS 2초) — 막힌 메시지 직후라 사람보다 빠른 테스트가 걸린다.
+  await page.waitForTimeout(2_500);
+  const recall = await sendAndAwaitReply(page, "내 강아지 이름이 뭐라고 했지? 이름만 말해줘.");
+  expect(recall.replace(/\s+/g, ""), `되돌린 뒤 기억하지 못했습니다: ${recall}`).toContain(token);
+});

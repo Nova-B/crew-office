@@ -2012,6 +2012,21 @@ const en: Record<string, string> = {
   "crew.resume": "Resume CLI employees",
   "crew.pausedBanner": "CLI employees are paused — no new work will start.",
   "crew.asksUsage": "Colleague asks {used}/{limit} (last hour)",
+  // crew-office: 터미널 인계
+  "npc.crewHandoff":
+    "This employee is being operated in a terminal right now. Press 'Return to app' before talking.",
+  "crew.handoff": "Hand off to terminal",
+  "crew.reclaim": "Return to app",
+  "crew.handedOffStatus": "In a terminal",
+  "crew.handoffOpened":
+    "Opened {name}'s session in a new terminal window. Press 'Return to app' when you are done.",
+  "crew.handoffManual": "Open it in a terminal yourself: {command}",
+  "crew.handoffError.no_session":
+    "Talk to this employee once first so there is a session to hand off.",
+  "crew.handoffError.busy":
+    "The employee is working right now. Try again after the reply finishes.",
+  "crew.handoffError.not_installed": "The CLI was not found on this PC.",
+  "crew.handoffError.generic": "Could not hand off to a terminal.",
 };
 
 export default en;

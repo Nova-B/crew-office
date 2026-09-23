@@ -18,6 +18,8 @@ export type RosterNpc = {
   active: boolean;
   placed: boolean;
   seatNumber?: number | null;
+  /** crew-office: "claude" | "codex" 면 CLI 직원 — 터미널 인계 메뉴가 붙는다. */
+  adapterType?: string;
 };
 
 export type NpcRosterProps = {

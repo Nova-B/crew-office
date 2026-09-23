@@ -1967,6 +1967,17 @@ const zh: Record<string, string> = {
   "crew.resume": "恢复 CLI 员工",
   "crew.pausedBanner": "CLI 员工已暂停 — 不会开始新的工作。",
   "crew.asksUsage": "向同事提问 {used}/{limit}(最近 1 小时)",
+  // crew-office: 터미널 인계
+  "npc.crewHandoff": "该员工正在终端中被直接操作。请先点击“返回应用”再对话。",
+  "crew.handoff": "交给终端",
+  "crew.reclaim": "返回应用",
+  "crew.handedOffStatus": "终端操作中",
+  "crew.handoffOpened": "已在新的终端窗口中打开 {name} 的会话。用完后请点击“返回应用”。",
+  "crew.handoffManual": "请在终端中手动打开:{command}",
+  "crew.handoffError.no_session": "请先与该员工一对一对话以创建会话,然后再交接。",
+  "crew.handoffError.busy": "该员工正在工作,无法交接。请在回复结束后重试。",
+  "crew.handoffError.not_installed": "在本机找不到 CLI。",
+  "crew.handoffError.generic": "无法交给终端。",
 };
 
 export default zh;

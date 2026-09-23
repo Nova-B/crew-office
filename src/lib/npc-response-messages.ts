@@ -28,6 +28,8 @@ const NPC_RESPONSE_MESSAGE_KEYS = {
   crew_paused: "npc.crewPaused",
   /** crew-office: CLI 직원(Claude Code·Codex)이 실패했다. "게이트웨이" 문구는 CLI 직원에게 맞지 않는다. */
   cli_error: "npc.cliError",
+  /** crew-office: 사람이 이 직원의 세션을 터미널에서 쓰는 중이라 앱이 턴을 보내지 않았다. */
+  crew_handoff: "npc.crewHandoff",
 } as const;
 
 export type NpcResponseMessageCode = keyof typeof NPC_RESPONSE_MESSAGE_KEYS;

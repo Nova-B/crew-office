@@ -2009,6 +2009,19 @@ const ko: Record<string, string> = {
   "crew.resume": "CLI 직원 다시 움직이기",
   "crew.pausedBanner": "CLI 직원이 일시정지 중입니다 — 새 작업을 시작하지 않습니다.",
   "crew.asksUsage": "동료 묻기 {used}/{limit} (최근 1시간)",
+  // crew-office: 터미널 인계
+  "npc.crewHandoff":
+    "이 직원은 지금 터미널에서 직접 조작 중입니다. '앱으로 되돌리기'를 누른 뒤 말을 걸어 주세요.",
+  "crew.handoff": "터미널로 넘기기",
+  "crew.reclaim": "앱으로 되돌리기",
+  "crew.handedOffStatus": "터미널에서 조작 중",
+  "crew.handoffOpened":
+    "{name} 의 세션을 새 터미널 창에서 열었습니다. 다 쓰면 '앱으로 되돌리기'를 누르세요.",
+  "crew.handoffManual": "터미널에서 직접 여세요: {command}",
+  "crew.handoffError.no_session": "먼저 1:1로 말을 걸어 세션을 만든 뒤 넘길 수 있습니다.",
+  "crew.handoffError.busy": "지금 일하는 중이라 넘길 수 없습니다. 답이 끝난 뒤 다시 시도하세요.",
+  "crew.handoffError.not_installed": "이 PC 에서 CLI 를 찾지 못했습니다.",
+  "crew.handoffError.generic": "터미널로 넘기지 못했습니다.",
 };
 
 export default ko;

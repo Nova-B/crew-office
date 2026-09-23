@@ -2021,6 +2021,19 @@ const ja: Record<string, string> = {
   "crew.resume": "CLI社員を再開",
   "crew.pausedBanner": "CLI社員は一時停止中です — 新しい作業は始まりません。",
   "crew.asksUsage": "同僚への質問 {used}/{limit}(直近1時間)",
+  // crew-office: 터미널 인계
+  "npc.crewHandoff":
+    "この社員は今ターミナルで直接操作中です。「アプリに戻す」を押してから話しかけてください。",
+  "crew.handoff": "ターミナルに渡す",
+  "crew.reclaim": "アプリに戻す",
+  "crew.handedOffStatus": "ターミナルで操作中",
+  "crew.handoffOpened":
+    "{name} のセッションを新しいターミナルで開きました。終わったら「アプリに戻す」を押してください。",
+  "crew.handoffManual": "ターミナルで直接開いてください: {command}",
+  "crew.handoffError.no_session": "まず1対1で話しかけてセッションを作ってから渡せます。",
+  "crew.handoffError.busy": "作業中のため渡せません。返答が終わってから再試行してください。",
+  "crew.handoffError.not_installed": "このPCでCLIが見つかりません。",
+  "crew.handoffError.generic": "ターミナルに渡せませんでした。",
 };
 
 export default ja;

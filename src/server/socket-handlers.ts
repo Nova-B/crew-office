@@ -130,6 +130,8 @@ import nodePath from "node:path";
 import { GeminiAdapter } from "../lib/adapters/gemini-adapter.js";
 import { OpencodeAdapter as OpenCodeAdapter } from "../lib/adapters/opencode-adapter.js";
 import { deriveContextKey, getStoredNpcSessionRef, persistNpcSessionRef } from "./npc-sessions";
+import { resolveCliInvocation } from "../lib/adapters/cli-executable.js";
+import { buildHandoffCommand, openTerminal } from "../lib/adapters/terminal-handoff.js";
 
 export const adapterRegistry = new AdapterRegistry();
 
@@ -204,6 +206,10 @@ async function runColleagueTurn(
   },
 ): Promise<string> {
   const { from, to, question, ctx, childToken } = args;
+  // 사람이 터미널에서 이 직원의 세션을 쓰는 중이면 끼어들지 않는다(crew-control.ts 인계 잠금).
+  if (crewControl.isHandedOff(to.id)) {
+    throw new Error(`${to.name} 은(는) 지금 사람이 터미널에서 조작 중입니다`);
+  }
   const config = await getNpcConfig(to.id);
   if (!config || !adapterRegistry.has(config.adapterType)) throw new Error("colleague unavailable");
   const adapter = adapterRegistry.get(config.adapterType);
@@ -216,7 +222,7 @@ async function runColleagueTurn(
   const activity = (key: string | null) =>
     io.to(ctx.channelId).emit("npc:activity", { npcId: to.id, activityKey: key });
   const sessionKey = `${to.id}-inbox`;
-  const untrack = crewControl.track(ctx.channelId, () => void adapter.abort?.(sessionKey));
+  const untrack = crewControl.track(ctx.channelId, () => void adapter.abort?.(sessionKey), to.id);
   activity("npc.activity.thinking");
   try {
     const { response, session } = await adapter.execute({
@@ -675,8 +681,13 @@ async function streamNpcResponse(
       emitNpcSystemResponse(socket, npcId, "crew_paused");
       return "";
     }
+    // 사람이 터미널에서 같은 세션을 쓰는 동안 앱이 이어 쓰면 기록이 엉킨다.
+    if (isCli && crewControl.isHandedOff(npcId)) {
+      emitNpcSystemResponse(socket, npcId, "crew_handoff");
+      return "";
+    }
     const untrack = isCli
-      ? crewControl.track(channelId, () => void adapter.abort?.(sessionKey))
+      ? crewControl.track(channelId, () => void adapter.abort?.(sessionKey), npcId)
       : () => {};
 
     try {
@@ -1536,6 +1547,63 @@ export function setupSocketHandlers(io: Server) {
           ? `${user.nickname} 님이 CLI 직원을 모두 멈췄습니다${stopped ? ` (진행 중이던 작업 ${stopped}건 중단)` : ""}.`
           : `${user.nickname} 님이 CLI 직원을 다시 움직이게 했습니다.`,
       ).catch(() => undefined);
+    });
+
+    // ----- crew:handoff / crew:reclaim (crew-office 4단계: 터미널 인계) -----
+    // 응답 모양: { ok: true, opened, command } | { ok: false, error }. command 는 창을 못 열었을 때
+    // 사람이 직접 칠 명령이다(작업 폴더로 이동 + 재개).
+    socket.on("crew:handoff", async (data: unknown, ack: unknown) => {
+      const reply = typeof ack === "function" ? (ack as (value: unknown) => void) : () => {};
+      const player = players.get(socket.id);
+      const npcId = (data as { npcId?: unknown } | null)?.npcId;
+      if (!player || typeof npcId !== "string") return reply({ ok: false, error: "invalid" });
+      if (!(await isChannelOwner(player.mapId, user.userId)))
+        return reply({ ok: false, error: "forbidden" });
+      const npc = await getNpcConfig(npcId);
+      if (!npc || npc._channelId !== player.mapId || !isCliEmployeeAdapter(npc.adapterType))
+        return reply({ ok: false, error: "not_cli_employee" });
+      // 사람이 쓰려는 것은 자기와 이 직원의 1:1 세션이다 — DM 과 같은 contextKey 규약으로 찾는다.
+      const prefix = npc.sessionKeyPrefix || npcId;
+      const contextKey = deriveContextKey(`${prefix}-dm-${user.userId}`, prefix);
+      const sessionRef = await getStoredNpcSessionRef(
+        npcId,
+        user.userId,
+        contextKey,
+        npc.adapterType,
+      );
+      if (!sessionRef) return reply({ ok: false, error: "no_session" });
+      const invocation = resolveCliInvocation(npc.adapterType);
+      if (!invocation) return reply({ ok: false, error: "not_installed" });
+      if (!crewControl.handOff(npcId, player.mapId)) return reply({ ok: false, error: "busy" });
+
+      const cwd = await ensureEmployeeWorkspace(npcId);
+      const handoff = buildHandoffCommand(npc.adapterType, invocation, sessionRef);
+      const opened = openTerminal(cwd, handoff);
+      broadcastCrewState(player.mapId);
+      await postCrewNotice(
+        io,
+        player.mapId,
+        `${user.nickname} 님이 ${npc.name} 의 세션을 터미널로 넘겨받았습니다.`,
+      ).catch(() => undefined);
+      reply({ ok: true, opened, command: `cd "${cwd}" && ${handoff.display}` });
+    });
+
+    socket.on("crew:reclaim", async (data: unknown, ack: unknown) => {
+      const reply = typeof ack === "function" ? (ack as (value: unknown) => void) : () => {};
+      const player = players.get(socket.id);
+      const npcId = (data as { npcId?: unknown } | null)?.npcId;
+      if (!player || typeof npcId !== "string") return reply({ ok: false, error: "invalid" });
+      if (!(await isChannelOwner(player.mapId, user.userId)))
+        return reply({ ok: false, error: "forbidden" });
+      if (!crewControl.reclaim(npcId)) return reply({ ok: true });
+      const npc = await getNpcConfig(npcId);
+      broadcastCrewState(player.mapId);
+      await postCrewNotice(
+        io,
+        player.mapId,
+        `${user.nickname} 님이 ${npc?.name ?? "직원"} 을(를) 앱으로 되돌렸습니다.`,
+      ).catch(() => undefined);
+      reply({ ok: true });
     });
 
     socket.on("map:layout-saved", async () => {

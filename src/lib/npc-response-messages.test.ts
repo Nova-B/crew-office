@@ -28,6 +28,7 @@ const TEST_CODES: Record<NpcResponseMessageCode, string> = {
   hermes_image_unsupported: "npc.hermesImageUnsupported",
   crew_paused: "npc.crewPaused",
   cli_error: "npc.cliError",
+  crew_handoff: "npc.crewHandoff",
 };
 
 test("npc response message codes map to stable translation keys", () => {
