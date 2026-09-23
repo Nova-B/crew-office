@@ -53,94 +53,6 @@ const SQLITE_BASE_SCHEMA = `
       updated_at TEXT
     );
 
-    CREATE TABLE IF NOT EXISTS gateway_resources (
-      id TEXT PRIMARY KEY NOT NULL,
-      owner_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      display_name TEXT NOT NULL,
-      base_url TEXT NOT NULL,
-      token_encrypted TEXT NOT NULL,
-      paired_device_id TEXT,
-      last_validated_at TEXT,
-      last_validation_status TEXT,
-      last_validation_error TEXT,
-      local_discovery_opted_in_at TEXT,
-      local_discovery_opted_in_by TEXT REFERENCES users(id) ON DELETE SET NULL,
-      plugin_status TEXT,
-      plugin_version TEXT,
-      plugin_checked_at TEXT,
-      plugin_info_json TEXT,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS idx_gateway_resources_owner_user_id ON gateway_resources(owner_user_id);
-
-    CREATE TABLE IF NOT EXISTS gateway_shares (
-      id TEXT PRIMARY KEY NOT NULL,
-      gateway_id TEXT NOT NULL REFERENCES gateway_resources(id) ON DELETE CASCADE,
-      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      role TEXT NOT NULL DEFAULT 'use',
-      created_at TEXT NOT NULL,
-      UNIQUE(gateway_id, user_id)
-    );
-    CREATE INDEX IF NOT EXISTS idx_gateway_shares_gateway_id ON gateway_shares(gateway_id);
-    CREATE INDEX IF NOT EXISTS idx_gateway_shares_user_id ON gateway_shares(user_id);
-    CREATE UNIQUE INDEX IF NOT EXISTS gateway_shares_gateway_user_idx ON gateway_shares(gateway_id, user_id);
-
-    CREATE TABLE IF NOT EXISTS hermes_profiles (
-      id TEXT PRIMARY KEY NOT NULL,
-      gateway_id TEXT NOT NULL REFERENCES gateway_resources(id) ON DELETE CASCADE,
-      profile_name TEXT NOT NULL,
-      token_encrypted TEXT NOT NULL,
-      display_name TEXT,
-      description TEXT,
-      appearance TEXT,
-      provisioned_by_deskrpg INTEGER NOT NULL DEFAULT 0,
-      last_validated_at TEXT,
-      last_validation_status TEXT,
-      last_validation_error TEXT,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS idx_hermes_profiles_gateway_id ON hermes_profiles(gateway_id);
-    CREATE UNIQUE INDEX IF NOT EXISTS hermes_profiles_gateway_name_idx ON hermes_profiles(gateway_id, profile_name);
-
-    CREATE TABLE IF NOT EXISTS provider_resources (
-      id TEXT PRIMARY KEY NOT NULL,
-      owner_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      provider_type TEXT NOT NULL,
-      display_name TEXT,
-      auth_method TEXT NOT NULL,
-      credentials_encrypted TEXT,
-      base_url TEXT,
-      last_validated_at TEXT,
-      last_validation_status TEXT,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS idx_provider_resources_owner ON provider_resources(owner_user_id);
-
-    CREATE TABLE IF NOT EXISTS provider_shares (
-      id TEXT PRIMARY KEY NOT NULL,
-      provider_id TEXT NOT NULL REFERENCES provider_resources(id) ON DELETE CASCADE,
-      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      role TEXT NOT NULL DEFAULT 'use',
-      created_at TEXT NOT NULL,
-      UNIQUE(provider_id, user_id)
-    );
-    CREATE INDEX IF NOT EXISTS idx_provider_shares_provider ON provider_shares(provider_id);
-    CREATE UNIQUE INDEX IF NOT EXISTS provider_shares_provider_user_idx ON provider_shares(provider_id, user_id);
-
-    CREATE TABLE IF NOT EXISTS channel_gateway_bindings (
-      id TEXT PRIMARY KEY NOT NULL,
-      channel_id TEXT NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
-      gateway_id TEXT NOT NULL REFERENCES gateway_resources(id) ON DELETE CASCADE,
-      bound_by_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
-      bound_at TEXT NOT NULL,
-      UNIQUE(channel_id)
-    );
-    CREATE INDEX IF NOT EXISTS idx_channel_gateway_bindings_gateway_id ON channel_gateway_bindings(gateway_id);
-    CREATE UNIQUE INDEX IF NOT EXISTS channel_gateway_bindings_channel_idx ON channel_gateway_bindings(channel_id);
-
     CREATE TABLE IF NOT EXISTS group_members (
       id TEXT PRIMARY KEY NOT NULL,
       group_id TEXT NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
@@ -232,13 +144,11 @@ const SQLITE_BASE_SCHEMA = `
       appearance TEXT,
       adapter_type TEXT NOT NULL DEFAULT 'hermes',
       adapter_config TEXT,
-      hermes_profile_id TEXT REFERENCES hermes_profiles(id) ON DELETE CASCADE,
       agent_config TEXT,
       active INTEGER NOT NULL DEFAULT 1,
       created_at TEXT,
       updated_at TEXT,
-      UNIQUE(channel_id, position_x, position_y),
-      UNIQUE(channel_id, hermes_profile_id)
+      UNIQUE(channel_id, position_x, position_y)
     );
     CREATE INDEX IF NOT EXISTS idx_npcs_channel_id ON npcs(channel_id);
 
@@ -298,67 +208,6 @@ const SQLITE_BASE_SCHEMA = `
       created_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_chat_room_messages_room ON chat_room_messages(room_id, created_at);
-
-    CREATE TABLE IF NOT EXISTS channel_kanban_boards (
-      id TEXT PRIMARY KEY NOT NULL,
-      channel_id TEXT NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
-      gateway_id TEXT NOT NULL REFERENCES gateway_resources(id) ON DELETE CASCADE,
-      board_slug TEXT NOT NULL,
-      is_event_carrier INTEGER NOT NULL DEFAULT 0,
-      board_name_synced_at TEXT,
-      event_cursor TEXT,
-      last_polled_at TEXT,
-      last_error TEXT,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS idx_channel_kanban_boards_gateway_id ON channel_kanban_boards(gateway_id);
-    CREATE TABLE IF NOT EXISTS cron_job_origins (
-      id TEXT PRIMARY KEY NOT NULL,
-      gateway_id TEXT NOT NULL REFERENCES gateway_resources(id) ON DELETE CASCADE,
-      profile_name TEXT NOT NULL,
-      job_id TEXT NOT NULL,
-      channel_id TEXT NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
-      created_by_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
-      created_at TEXT NOT NULL,
-      UNIQUE(gateway_id, profile_name, job_id)
-    );
-    CREATE INDEX IF NOT EXISTS idx_cron_job_origins_channel_id ON cron_job_origins(channel_id);
-    CREATE UNIQUE INDEX IF NOT EXISTS cron_job_origins_gateway_profile_job_idx ON cron_job_origins(gateway_id, profile_name, job_id);
-
-    CREATE TABLE IF NOT EXISTS approvals (
-      id TEXT PRIMARY KEY NOT NULL,
-      channel_id TEXT NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
-      type TEXT NOT NULL,
-      status TEXT NOT NULL,
-      requested_by TEXT NOT NULL,
-      title TEXT NOT NULL,
-      source_json TEXT NOT NULL,
-      payload_json TEXT,
-      decided_by TEXT REFERENCES users(id) ON DELETE SET NULL,
-      decided_at TEXT,
-      decision_note TEXT,
-      created_at TEXT NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS approvals_channel_status_idx ON approvals(channel_id, status);
-
-    -- task_id 는 Hermes 카드를 가리키기만 한다 — FK 가 아니고 사본도 아니다(하드 게이트 1).
-    CREATE TABLE IF NOT EXISTS approval_targets (
-      approval_id TEXT NOT NULL REFERENCES approvals(id) ON DELETE CASCADE,
-      task_id TEXT NOT NULL,
-      decision TEXT,
-      PRIMARY KEY (approval_id, task_id)
-    );
-    CREATE INDEX IF NOT EXISTS approval_targets_task_idx ON approval_targets(task_id);
-
-    CREATE TABLE IF NOT EXISTS npc_panel_reads (
-      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      npc_id TEXT NOT NULL REFERENCES npcs(id) ON DELETE CASCADE,
-      tab TEXT NOT NULL,
-      seen_at TEXT NOT NULL,
-      seen_ids TEXT,
-      PRIMARY KEY (user_id, npc_id, tab)
-    );
 
     CREATE TABLE IF NOT EXISTS meeting_minutes (
       id TEXT PRIMARY KEY NOT NULL,

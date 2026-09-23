@@ -25,7 +25,6 @@ export async function hireCliEmployee(
       agentConfig: jsonForDb(
         input.soul ? { soul: input.soul } : {},
       ) as typeof npcs.$inferInsert.agentConfig,
-      hermesProfileId: null,
       active: true,
       updatedAt: nowForDb(),
     })

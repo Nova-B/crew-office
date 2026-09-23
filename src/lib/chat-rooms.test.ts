@@ -5,7 +5,7 @@ import {
   setupThrowawaySqlite,
   seedUser,
   seedChannel,
-  seedChannelWithProfiles,
+  seedChannelWithNpcs,
 } from "@/test-setup/npc-seed";
 
 // `db` 는 지연 초기화 싱글턴이고 node:test 는 파일마다 프로세스를 나누므로, 모듈
@@ -117,7 +117,7 @@ test("NPC 멤버 초대는 중복 무시, 방 삭제는 cascade", async () => {
     deleteRoom,
     recentRoomMessages,
   } = await import("./chat-rooms");
-  const seeded = await seedChannelWithProfiles({ placedActive: 2 });
+  const seeded = await seedChannelWithNpcs({ placedActive: 2 });
   const room = await createRoom({
     channelId: seeded.channelId,
     name: "r",

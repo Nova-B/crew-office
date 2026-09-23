@@ -118,8 +118,6 @@ import {
   setupThrowawaySqlite,
   seedUser,
   seedChannel,
-  seedGateway,
-  seedHermesProfile,
   seedNpc,
   authHeaders,
 } from "../../../test-setup/npc-seed";
@@ -130,24 +128,17 @@ test("real authorized SQLite GET backs up and changes only mapData/updatedAt; an
   const directory = await mkdtemp(join(tmpdir(), "map-get-backup-"));
   process.env.DESKRPG_MAP_BACKUP_DIR = directory;
   try {
-    const { db, channels, jsonForDb, npcs, hermesProfiles } = await import("../../../db");
+    const { db, channels, jsonForDb, npcs } = await import("../../../db");
     const { eq } = await import("drizzle-orm");
     const { GET } = await import("./[id]/route");
     const user = await seedUser();
     const channel = await seedChannel(user.id);
-    const gateway = await seedGateway(user.id);
-    const profile = await seedHermesProfile(gateway.id);
     await seedNpc({
       channelId: channel.id,
-      hermesProfileId: profile.id,
       positionX: 999,
       positionY: 999,
     });
     const npcBefore = await db.select().from(npcs).where(eq(npcs.channelId, channel.id));
-    const profileBefore = await db
-      .select()
-      .from(hermesProfiles)
-      .where(eq(hermesProfiles.id, profile.id));
     await db
       .update(channels)
       .set({
@@ -184,10 +175,6 @@ test("real authorized SQLite GET backs up and changes only mapData/updatedAt; an
     for (const key of Object.keys(before) as Array<keyof typeof before>)
       if (key !== "mapData" && key !== "updatedAt") assert.deepEqual(after[key], before[key], key);
     assert.deepEqual(await db.select().from(npcs).where(eq(npcs.channelId, channel.id)), npcBefore);
-    assert.deepEqual(
-      await db.select().from(hermesProfiles).where(eq(hermesProfiles.id, profile.id)),
-      profileBefore,
-    );
     assert.deepEqual(phases, ["begin", "finish"]);
     const files = await readdir(directory);
     assert.equal(files.length, 1);

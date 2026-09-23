@@ -1711,7 +1711,6 @@ function GamePageInner({ onFatal }: GamePageClientProps) {
                 active: !!npc.active,
                 placed: !!npc.placed,
                 seatNumber: npc.seatNumber ?? null,
-                profile: npc.profile ?? null,
               }),
             ),
           );

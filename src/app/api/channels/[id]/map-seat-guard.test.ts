@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { NextRequest } from "next/server";
 
-import { authHeaders, seedChannelWithProfiles, setupThrowawaySqlite } from "@/test-setup/npc-seed";
+import { authHeaders, seedChannelWithNpcs, setupThrowawaySqlite } from "@/test-setup/npc-seed";
 import { buildOfficeEnvironment } from "@/game/three/office-environments";
 import { commonAreaSeats } from "@/game/three/seating";
 import { projectMeetingMap } from "@/game/meeting-map-normalization";
@@ -51,7 +51,7 @@ test("의자를 뺀 픽스처는 좌석이 0개다 — 이 단언이 깨지면 �
 });
 
 test("데스크 의자가 하나도 없는 맵은 400 map_has_no_desk_seats", async () => {
-  const { channelId, userId } = await seedChannelWithProfiles({
+  const { channelId, userId } = await seedChannelWithNpcs({
     mapData: buildOfficeEnvironment("executive"),
   });
   const { PUT } = await import("./route");
@@ -71,7 +71,7 @@ test("데스크 의자가 하나도 없는 맵은 400 map_has_no_desk_seats", as
 });
 
 test("원본 맵(의자 포함)은 그대로 저장된다", async () => {
-  const { channelId, userId } = await seedChannelWithProfiles({
+  const { channelId, userId } = await seedChannelWithNpcs({
     mapData: buildOfficeEnvironment("executive"),
   });
   const { PUT } = await import("./route");

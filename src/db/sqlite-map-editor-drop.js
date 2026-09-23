@@ -84,7 +84,7 @@ const FEMALE_LOOK_ID = "office-nari";
 const DEFAULT_LOOK_ID = "office-jun";
 
 /** 외형을 담은 표와 컬럼. npcs 는 값만 고치고 컬럼은 남긴다. */
-const APPEARANCE_TABLES = ["characters", "hermes_profiles", "npcs"];
+const APPEARANCE_TABLES = ["characters", "npcs"];
 
 const VALID_LOOK_IDS = new Set(OFFICE_LOOK_IDS);
 

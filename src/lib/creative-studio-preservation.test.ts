@@ -29,15 +29,11 @@ test(
     });
     const tables = [
       schema.users,
-      schema.hermesProfiles,
-      schema.gatewayResources,
       schema.channels,
       schema.channelMembers,
       schema.npcs,
       schema.chatRooms,
       schema.chatRoomMessages,
-      schema.channelGatewayBindings,
-      schema.gatewayShares,
       schema.groups,
       schema.groupMembers,
       schema.chatRoomMembers,
@@ -46,15 +42,11 @@ test(
     ];
     const seedRows: Record<string, Record<string, unknown>> = {
       users: { id, password_hash: sensitive },
-      hermes_profiles: { id, gateway_id: id },
-      gateway_resources: { id, owner_user_id: id },
       channels: { id, group_id: id, map_data: fixture, gateway_config: { private: sensitive } },
       channel_members: { user_id: id, channel_id: id },
-      npcs: { id, channel_id: id, hermes_profile_id: id },
+      npcs: { id, channel_id: id },
       chat_rooms: { id, channel_id: id },
       chat_room_messages: { id, room_id: id, content: sensitive },
-      channel_gateway_bindings: { id, channel_id: id, gateway_id: id, bound_by_user_id: id },
-      gateway_shares: { id, gateway_id: id, user_id: id, role: "use" },
       groups: { id, name: sensitive },
       group_members: { id, group_id: id, user_id: id, role: "member" },
       chat_room_members: { room_id: id, member_kind: "user", member_id: id, invited_by: id },
@@ -92,8 +84,6 @@ test(
       await reset();
       const before = await snapshot();
       const cases = [
-        ["channel_gateway_bindings", 1, "bindings", "bound_by_user_id", otherId],
-        ["gateway_shares", 0, "gatewayShares", "role", "admin"],
         ["groups", 0, "groups", "name", "changed"],
         ["group_members", 0, "groupMembers", "role", "admin"],
         ["chat_room_members", 1, "roomMembers", "invited_by", otherId],

@@ -44,8 +44,6 @@ test("채널 소유자는 프로필 없는 Claude·Codex 직원을 여럿 고용
   const mina = roster.find((n) => n.id === npc.id)!;
   assert.equal(mina.name, "Mina");
   assert.equal(mina.adapterType, "claude");
-  assert.equal(mina.hermesProfileId, null);
-  assert.equal(mina.profile, null);
   assert.equal(mina.active, true);
   assert.deepEqual(mina.adapterConfig, { model: "haiku" });
   assert.deepEqual(mina.agentConfig, { soul: "You are a cheerful planner." });

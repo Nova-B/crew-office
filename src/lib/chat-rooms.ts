@@ -7,7 +7,6 @@ import {
   channels,
   users,
   npcs,
-  hermesProfiles,
   nowForDb,
 } from "@/db";
 import { isUniqueViolation } from "./db-unique-violation";
@@ -155,16 +154,8 @@ async function memberDisplayNames(
 
   const npcNames = new Map<string, string>();
   if (npcIds.length > 0) {
-    const rows = await db
-      .select({ npc: npcs, profile: hermesProfiles })
-      .from(npcs)
-      // left join — 프로필 없는 CLI 직원도 이름이 보여야 한다(crew-office).
-      .leftJoin(hermesProfiles, eq(hermesProfiles.id, npcs.hermesProfileId))
-      .where(inArray(npcs.id, npcIds));
-    for (const r of rows) {
-      const projected = projectNpcRow(r.npc, r.profile, "");
-      npcNames.set(r.npc.id, projected.name);
-    }
+    const rows = await db.select().from(npcs).where(inArray(npcs.id, npcIds));
+    for (const r of rows) npcNames.set(r.id, projectNpcRow(r).name);
   }
 
   for (const m of members) {
@@ -293,12 +284,8 @@ export async function createRoom(args: {
     const npcRows =
       args.npcIds.length === 0
         ? []
-        : await db
-            .select({ npc: npcs, profile: hermesProfiles })
-            .from(npcs)
-            .leftJoin(hermesProfiles, eq(hermesProfiles.id, npcs.hermesProfileId))
-            .where(inArray(npcs.id, args.npcIds));
-    const names = npcRows.map((r) => projectNpcRow(r.npc, r.profile, "").name);
+        : await db.select().from(npcs).where(inArray(npcs.id, args.npcIds));
+    const names = npcRows.map((r) => projectNpcRow(r).name);
     name = (names.join(", ") || "새 대화방").slice(0, 60);
   }
 

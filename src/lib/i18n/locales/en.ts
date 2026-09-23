@@ -1368,7 +1368,6 @@ const en: Record<string, string> = {
   "game.roster.title": "NPC roster",
   "game.roster.hire": "New hire",
   "game.roster.dormant": "Off duty",
-  "game.roster.shared": "Shared",
   "game.roster.inMeeting": "In a meeting — cannot clock out",
   "game.roster.needsGateway": "Connect a gateway to this channel first",
   "game.inviteFriend": "Invite Friend",

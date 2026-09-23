@@ -20,7 +20,6 @@ const roster: RosterNpc[] = [
     active: true,
     placed: true,
     seatNumber: 3,
-    profile: { ownerUserId: "me" },
   },
   {
     id: "b",
@@ -28,7 +27,6 @@ const roster: RosterNpc[] = [
     active: true,
     placed: true,
     seatNumber: null,
-    profile: { ownerUserId: "me" },
   },
   {
     id: "c",
@@ -36,7 +34,6 @@ const roster: RosterNpc[] = [
     active: false,
     placed: true,
     seatNumber: 1,
-    profile: { ownerUserId: "someone" },
   },
 ];
 
@@ -63,7 +60,6 @@ test("출근한 직원은 좌석 번호 또는 '서 있음' 버튼을 보이고,
         npcs={roster}
         meetingNpcIds={new Set()}
         isOwner
-        currentUserId="me"
         onToggle={() => {}}
         onPlace={() => {}}
         onHire={() => {}}
@@ -85,7 +81,6 @@ test("좌석 버튼을 누르면 onPlace, 회의 중이면 토글이 비활성�
         npcs={roster}
         meetingNpcIds={new Set(["a"])}
         isOwner
-        currentUserId="me"
         onToggle={() => {}}
         onPlace={(id) => placed.push(id)}
         onHire={() => {}}
@@ -109,7 +104,6 @@ test("여러 명 선택 모드에서 체크한 출근 NPC 로 그룹 대화를 �
         npcs={roster}
         meetingNpcIds={new Set()}
         isOwner
-        currentUserId="me"
         onToggle={() => {}}
         onPlace={() => {}}
         onHire={() => {}}
@@ -133,21 +127,4 @@ test("여러 명 선택 모드에서 체크한 출근 NPC 로 그룹 대화를 �
   });
   buttonByText(el, "그룹 대화 시작").click();
   assert.deepEqual(started, [["a", "b"]]);
-});
-
-test("남의 프로필은 소유자를 표시한다", async () => {
-  const { el } = await mount(
-    <I18nProvider initialLocale="ko">
-      <NpcRoster
-        npcs={roster}
-        meetingNpcIds={new Set()}
-        isOwner
-        currentUserId="me"
-        onToggle={() => {}}
-        onPlace={() => {}}
-        onHire={() => {}}
-      />
-    </I18nProvider>,
-  );
-  assert.match(el.textContent ?? "", /공유됨/);
 });

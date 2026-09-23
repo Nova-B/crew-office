@@ -163,9 +163,6 @@ function seedAppearances(db: Database.Database): void {
     "INSERT INTO users (id, login_id, nickname, password_hash, created_at, updated_at) VALUES (?,?,?,?,?,?)",
   ).run("u1", "u1", "테스터", "x", "2026-01-01", "2026-01-01");
   db.prepare("INSERT INTO channels (id, name, owner_id) VALUES (?,?,?)").run("c1", "채널", "u1");
-  db.prepare(
-    "INSERT INTO gateway_resources (id, owner_user_id, display_name, base_url, token_encrypted, created_at, updated_at) VALUES (?,?,?,?,?,?,?)",
-  ).run("g1", "u1", "gw", "http://localhost:1", "enc", "2026-01-01", "2026-01-01");
 
   for (const c of APPEARANCE_CASES) {
     // characters.appearance 는 NOT NULL 이라 NULL 시나리오가 없다 — 그 행만 건너뛴다.
@@ -178,13 +175,12 @@ function seedAppearances(db: Database.Database): void {
       );
     }
 
-    db.prepare(
-      "INSERT INTO hermes_profiles (id, gateway_id, profile_name, token_encrypted, appearance, created_at, updated_at) VALUES (?,?,?,?,?,?,?)",
-    ).run(`prof-${c.key}`, "g1", c.key, "enc", c.value, "2026-01-01", "2026-01-01");
-
-    db.prepare(
-      "INSERT INTO npcs (id, channel_id, hermes_profile_id, appearance) VALUES (?,?,?,?)",
-    ).run(`npc-${c.key}`, "c1", `prof-${c.key}`, c.value);
+    // 자리(position_x/y)는 NULL 이라 (channel_id, position_x, position_y) 유니크에 걸리지 않는다.
+    db.prepare("INSERT INTO npcs (id, channel_id, appearance) VALUES (?,?,?)").run(
+      `npc-${c.key}`,
+      "c1",
+      c.value,
+    );
   }
 }
 
@@ -197,11 +193,6 @@ function assertAppearances(db: Database.Database, label: string): void {
         `${label}: characters/${c.key}`,
       );
     }
-    assert.equal(
-      appearanceOf(db, "hermes_profiles", `prof-${c.key}`),
-      c.expected,
-      `${label}: hermes_profiles/${c.key}`,
-    );
     assert.equal(appearanceOf(db, "npcs", `npc-${c.key}`), c.expected, `${label}: npcs/${c.key}`);
   }
 }
@@ -213,17 +204,7 @@ test("빈 DB 의 기본 스키마에는 맵 에디터 표가 없다", () => {
 
   for (const t of MAP_EDITOR_TABLES) assert.equal(tableExists(db, t), false, t);
   // 다른 표는 정상이다.
-  for (const t of [
-    "users",
-    "channels",
-    "characters",
-    "npcs",
-    "hermes_profiles",
-    "chat_rooms",
-    "channel_kanban_boards",
-    "cron_job_origins",
-    "meeting_minutes",
-  ]) {
+  for (const t of ["users", "channels", "characters", "npcs", "chat_rooms", "meeting_minutes"]) {
     assert.ok(tableExists(db, t), t);
   }
   db.close();

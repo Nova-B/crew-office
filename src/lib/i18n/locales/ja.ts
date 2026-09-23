@@ -1370,7 +1370,6 @@ const ja: Record<string, string> = {
   "game.roster.title": "NPC出勤簿",
   "game.roster.hire": "新しい社員",
   "game.roster.dormant": "休憩中",
-  "game.roster.shared": "共有",
   "game.roster.inMeeting": "会議中のため退勤できません",
   "game.roster.needsGateway": "先にチャンネルにゲートウェイを接続してください",
   "game.inviteFriend": "友だちを招待",

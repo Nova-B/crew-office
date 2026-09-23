@@ -11,8 +11,6 @@ import {
   setupThrowawaySqlite,
   seedUser,
   seedChannel,
-  seedGateway,
-  seedHermesProfile,
   seedNpc,
   authHeaders,
 } from "../test-setup/npc-seed";
@@ -63,11 +61,8 @@ test("real socket admission rejects absent/empty/stale map revisions after upgra
   // player:join 은 서버가 정한 내 캐릭터로만 입장시킨다 — 캐릭터가 없으면 character_missing.
   await db.insert(characters).values({ userId: user.id, name: "Test", appearance: jsonForDb({}) });
   const channel = await seedChannel(user.id);
-  const gateway = await seedGateway(user.id);
-  const profile = await seedHermesProfile(gateway.id);
   const npc = await seedNpc({
     channelId: channel.id,
-    hermesProfileId: profile.id,
     positionX: 2,
     positionY: 2,
   });

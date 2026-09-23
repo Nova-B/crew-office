@@ -92,16 +92,8 @@ test("이미 캐릭터·채널이 있으면 그것을 재사용한다", async ()
   assert.deepEqual(await countRows(userId), { characters: 1, channels: 1 });
 });
 
-test("게이트웨이가 하나도 없어도 성공한다", async () => {
+test("게이트웨이 없이 성공한다", async () => {
   const { userId } = await seedDefaultGroupAdmin();
-
-  const { db, gatewayResources } = await import("@/db");
-  const { eq } = await import("drizzle-orm");
-  const owned = await db
-    .select({ id: gatewayResources.id })
-    .from(gatewayResources)
-    .where(eq(gatewayResources.ownerUserId, userId));
-  assert.equal(owned.length, 0, "전제: 게이트웨이가 없다");
 
   const { response, body } = await callQuickStart(userId);
   assert.equal(response.status, 200, JSON.stringify(body));

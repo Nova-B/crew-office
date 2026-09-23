@@ -1366,7 +1366,6 @@ const ko: Record<string, string> = {
   "game.roster.title": "NPC 출근부",
   "game.roster.hire": "새 직원",
   "game.roster.dormant": "쉬는 중",
-  "game.roster.shared": "공유됨",
   "game.roster.inMeeting": "회의 중이라 퇴근시킬 수 없습니다",
   "game.roster.needsGateway": "오피스에 게이트웨이를 연결해야 직원을 만들 수 있습니다",
   "game.inviteFriend": "친구 초대",

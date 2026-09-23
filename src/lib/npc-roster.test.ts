@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { setupThrowawaySqlite, seedChannelWithProfiles } from "@/test-setup/npc-seed";
+import { setupThrowawaySqlite, seedChannelWithNpcs } from "@/test-setup/npc-seed";
 import { buildOfficeEnvironment } from "@/game/three/office-environments";
 
 // `db` 는 지연 초기화 싱글턴이고 node:test 는 파일마다 프로세스를 나누므로, 모듈
@@ -13,7 +13,7 @@ test("자리 없이 잠들었던 직원도 되살아나면 자리를 받는다",
   const { selectChannelNpcs } = await import("./npc-projection");
   const { db, npcs } = await import("@/db");
   const { eq } = await import("drizzle-orm");
-  const { channelId, npcIds } = await seedChannelWithProfiles({
+  const { channelId, npcIds } = await seedChannelWithNpcs({
     unplaced: 1,
     mapData: buildOfficeEnvironment("executive"),
   });
@@ -35,7 +35,7 @@ test("M3: 출근 토글이 updated_at 을 갱신한다", async () => {
 
   // `updated_at` 은 마이그레이션이 "최신 하나" 를 고르는 기준이다. 상태를 바꾸는
   // 경로가 이것을 놔두면 그 판단이 낡은 값 위에서 이뤄진다.
-  const { channelId } = await seedChannelWithProfiles({ placedActive: 1 });
+  const { channelId } = await seedChannelWithNpcs({ placedActive: 1 });
   const [seeded] = await selectChannelNpcs(channelId, { roster: true });
 
   async function updatedAt(id: string) {

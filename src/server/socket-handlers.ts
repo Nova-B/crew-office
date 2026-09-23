@@ -286,7 +286,6 @@ interface NpcConfig {
   sessionKeyPrefix: string;
   adapterType: string;
   adapterConfig: Record<string, unknown>;
-  hermesProfileId: string | null;
   _channelId: string;
   _name: string;
   role?: string | null;
@@ -589,7 +588,6 @@ async function getNpcConfig(
       sessionKeyPrefix: (oc.sessionKeyPrefix as string) || npcId,
       adapterType: typeof npc.adapterType === "string" ? npc.adapterType : "openclaw",
       adapterConfig,
-      hermesProfileId: typeof npc.hermesProfileId === "string" ? npc.hermesProfileId : null,
       _channelId: npc.channelId as string,
       _name: npc.name,
       role: "Participant",
@@ -623,7 +621,6 @@ export async function getNpcConfigsForChannel(
         sessionKeyPrefix: (oc.sessionKeyPrefix as string) || npc.id,
         adapterType: typeof npc.adapterType === "string" ? npc.adapterType : "openclaw",
         adapterConfig,
-        hermesProfileId: typeof npc.hermesProfileId === "string" ? npc.hermesProfileId : null,
         _channelId: channelId,
         _name: npc.name,
         meetingProtocol: typeof oc.meetingProtocol === "string" ? oc.meetingProtocol : null,

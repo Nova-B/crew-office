@@ -104,12 +104,10 @@ export async function GET(req: NextRequest) {
         hasAgent: !!agentConfig.agentId,
         agentId: (agentConfig.agentId as string) || null,
         adapterType: npc.adapterType,
-        hermesProfileId: npc.hermesProfileId,
         ...(roster
           ? {
               active: npc.active,
               placed: npc.positionX !== null,
-              profile: npc.profile,
               seatNumber: seats ? seatNumberAt(seats, npc.positionX, npc.positionY) : null,
             }
           : {}),

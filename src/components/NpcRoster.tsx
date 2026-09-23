@@ -18,7 +18,6 @@ export type RosterNpc = {
   active: boolean;
   placed: boolean;
   seatNumber?: number | null;
-  profile?: { ownerUserId?: string; profileName?: string } | null;
 };
 
 export type NpcRosterProps = {
@@ -26,7 +25,6 @@ export type NpcRosterProps = {
   /** 진행 중인 토론에 앉아 있는 NPC — 퇴근시키면 턴이 갈 곳을 잃는다. */
   meetingNpcIds: Set<string>;
   isOwner: boolean;
-  currentUserId: string;
   onToggle: (npcId: string, active: boolean) => void;
   onPlace: (npcId: string) => void;
   onHire: () => void;
@@ -42,7 +40,6 @@ export default function NpcRoster({
   npcs,
   meetingNpcIds,
   isOwner,
-  currentUserId,
   onToggle,
   onPlace,
   onHire,
@@ -116,12 +113,6 @@ export default function NpcRoster({
         ) : (
           npcs.map((npc) => {
             const inMeeting = meetingNpcIds.has(npc.id);
-            // 내가 누구인지 모르면(빈 문자열) 아무 주장도 하지 않는다 — 모르는 채로
-            // 비교하면 전부 "공유됨" 이 된다.
-            const shared =
-              !!currentUserId &&
-              !!npc.profile?.ownerUserId &&
-              npc.profile.ownerUserId !== currentUserId;
             return (
               <div
                 key={npc.id}
@@ -146,11 +137,6 @@ export default function NpcRoster({
                   </button>
                 ) : (
                   <span className="truncate">{npc.name}</span>
-                )}
-                {shared && (
-                  <span className="text-micro text-text-dim shrink-0">
-                    {t("game.roster.shared")}
-                  </span>
                 )}
                 <div className="ml-auto flex items-center gap-1 shrink-0">
                   {!npc.active ? (

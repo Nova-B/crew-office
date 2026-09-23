@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { setupThrowawaySqlite, seedChannelWithProfiles, seedUser } from "@/test-setup/npc-seed";
+import { setupThrowawaySqlite, seedChannelWithNpcs, seedUser } from "@/test-setup/npc-seed";
 
 setupThrowawaySqlite("room-socket-test");
 
@@ -48,7 +48,7 @@ function fakeIo(emitted: Emitted[]) {
   };
 }
 
-type Seeded = Awaited<ReturnType<typeof seedChannelWithProfiles>>;
+type Seeded = Awaited<ReturnType<typeof seedChannelWithNpcs>>;
 
 function setup(opts: { allowed?: boolean; player?: boolean; userId?: string } = {}) {
   const emitted: Emitted[] = [];
@@ -114,7 +114,7 @@ const ev = (emitted: Emitted[], name: string) =>
   emitted.filter(([e]) => e.startsWith(name)).map(([, p]) => p);
 
 test("room:list 는 office 를 포함해 내 방을 준다", async () => {
-  const seeded = await seedChannelWithProfiles({ placedActive: 1 });
+  const seeded = await seedChannelWithNpcs({ placedActive: 1 });
   const t = setup();
   await t.register(seeded);
   await t.socket.trigger("room:list", { channelId: seeded.channelId });
@@ -131,7 +131,7 @@ test("room:list 는 office 를 포함해 내 방을 준다", async () => {
 });
 
 test("room:send 는 open 하지 않은 방이면 not_open, 빈 메시지면 empty, 쿨다운이면 cooldown — 전부 room:error 로", async () => {
-  const seeded = await seedChannelWithProfiles({ placedActive: 1 });
+  const seeded = await seedChannelWithNpcs({ placedActive: 1 });
   const t = setup();
   await t.register(seeded);
   const office = await rooms.ensureOfficeRoom(seeded.channelId, seeded.userId);
@@ -147,7 +147,7 @@ test("room:send 는 open 하지 않은 방이면 not_open, 빈 메시지면 empt
 });
 
 test("room:send 성공은 저장 + 방 방송 + 런타임 호출, 채널 권한 없으면 forbidden", async () => {
-  const seeded = await seedChannelWithProfiles({ placedActive: 1 });
+  const seeded = await seedChannelWithNpcs({ placedActive: 1 });
   const t = setup();
   await t.register(seeded);
   const office = await rooms.ensureOfficeRoom(seeded.channelId, seeded.userId);
@@ -167,7 +167,7 @@ test("room:send 성공은 저장 + 방 방송 + 런타임 호출, 채널 권한 
 });
 
 test("room:send 는 player:join 이 심은 부른 사람의 이름·소개를 런타임에 넘긴다", async () => {
-  const seeded = await seedChannelWithProfiles({ placedActive: 1 });
+  const seeded = await seedChannelWithNpcs({ placedActive: 1 });
   const t = setup();
   await t.register(seeded);
   t.socket.data.userContext = { name: "곽지호", bio: "단테랩스 대표" };
@@ -178,7 +178,7 @@ test("room:send 는 player:join 이 심은 부른 사람의 이름·소개를 �
 });
 
 test("players 에 없는 소켓은 not_joined", async () => {
-  const seeded = await seedChannelWithProfiles({ placedActive: 1 });
+  const seeded = await seedChannelWithNpcs({ placedActive: 1 });
   const t = setup({ player: false });
   await t.register(seeded);
   const office = await rooms.ensureOfficeRoom(seeded.channelId, seeded.userId);
@@ -188,7 +188,7 @@ test("players 에 없는 소켓은 not_joined", async () => {
 });
 
 test("room:create 는 만든 사람을 멤버로 넣고 room:created 를 주며, group 방의 room:send 는 런타임을 깨운다", async () => {
-  const seeded = await seedChannelWithProfiles({ placedActive: 2 });
+  const seeded = await seedChannelWithNpcs({ placedActive: 2 });
   const t = setup();
   await t.register(seeded);
   await t.socket.trigger("room:create", {
@@ -208,7 +208,7 @@ test("room:create 는 만든 사람을 멤버로 넣고 room:created 를 주며,
 });
 
 test("room:created 의 requestId 는 요청한 소켓에만 되돌아온다 — 초대된 사람에게는 없다", async () => {
-  const seeded = await seedChannelWithProfiles({ placedActive: 1 });
+  const seeded = await seedChannelWithNpcs({ placedActive: 1 });
   const invitee = await seedUser("room-invitee");
   const t = setup();
   await t.register(seeded);
@@ -250,7 +250,7 @@ test("room:created 의 requestId 는 요청한 소켓에만 되돌아온다 — 
 });
 
 test("쓸 수 없는 requestId 는 무시한다 — 표 없이 방만 만든다", async () => {
-  const seeded = await seedChannelWithProfiles({ placedActive: 1 });
+  const seeded = await seedChannelWithNpcs({ placedActive: 1 });
   const t = setup();
   await t.register(seeded);
   await t.socket.trigger("room:create", {
@@ -266,7 +266,7 @@ test("쓸 수 없는 requestId 는 무시한다 — 표 없이 방만 만든다"
 });
 
 test("room:delete 는 만든 사람만, office 는 invalid", async () => {
-  const seeded = await seedChannelWithProfiles({ placedActive: 1 });
+  const seeded = await seedChannelWithNpcs({ placedActive: 1 });
   const t = setup();
   await t.register(seeded);
   const office = await rooms.ensureOfficeRoom(seeded.channelId, seeded.userId);
@@ -275,7 +275,7 @@ test("room:delete 는 만든 사람만, office 는 invalid", async () => {
 });
 
 test("room:rename 은 만든 사람만 — 멤버라도 남의 방 이름은 못 바꾼다", async () => {
-  const seeded = await seedChannelWithProfiles({ placedActive: 1 });
+  const seeded = await seedChannelWithNpcs({ placedActive: 1 });
   const owner = setup();
   await owner.register(seeded);
   await owner.socket.trigger("room:create", {
@@ -307,7 +307,7 @@ test("room:rename 은 만든 사람만 — 멤버라도 남의 방 이름은 못
 });
 
 test("room:open 은 최근 60줄만 돌려준다 — 그보다 오래된 줄은 잘린다", async () => {
-  const seeded = await seedChannelWithProfiles({ placedActive: 1 });
+  const seeded = await seedChannelWithNpcs({ placedActive: 1 });
   const t = setup();
   await t.register(seeded);
   const office = await rooms.ensureOfficeRoom(seeded.channelId, seeded.userId);
@@ -330,7 +330,7 @@ test("room:open 은 최근 60줄만 돌려준다 — 그보다 오래된 줄은 
 });
 
 test("office list remains available to an authorized visitor before asynchronous player join completes", async () => {
-  const seeded = await seedChannelWithProfiles({ placedActive: 1 });
+  const seeded = await seedChannelWithNpcs({ placedActive: 1 });
   const visitor = await seedUser("room-visitor");
   const t = setup({ userId: visitor.id, player: false });
   await t.register(seeded);
@@ -346,7 +346,7 @@ test("office list remains available to an authorized visitor before asynchronous
 });
 
 test("채널이 없으면 room:list 는 방을 만들지 않고 not_found 를 준다", async () => {
-  const seeded = await seedChannelWithProfiles({ placedActive: 1 });
+  const seeded = await seedChannelWithNpcs({ placedActive: 1 });
   const t = setup();
   await t.register(seeded);
   await t.socket.trigger("room:list", { channelId: "00000000-0000-0000-0000-000000000000" });
@@ -367,7 +367,7 @@ const officeRoomId = (emitted: Emitted[]) =>
     .rooms.find((room) => room.kind === "office")!.id;
 
 test("room:list 만으로 사무실 방 방송을 듣는다 — 방을 열지 않아도", async () => {
-  const seeded = await seedChannelWithProfiles({ placedActive: 1 });
+  const seeded = await seedChannelWithNpcs({ placedActive: 1 });
   const t = setup();
   await t.register(seeded);
   await t.socket.trigger("room:list", { channelId: seeded.channelId });
@@ -379,7 +379,7 @@ test("room:list 만으로 사무실 방 방송을 듣는다 — 방을 열지 �
 });
 
 test("room:list 는 사무실 방의 최근 줄도 내려 준다 — 접속 전에 쌓인 알림이 배지에 잡힌다", async () => {
-  const seeded = await seedChannelWithProfiles({ placedActive: 1 });
+  const seeded = await seedChannelWithNpcs({ placedActive: 1 });
   const t = setup();
   await t.register(seeded);
   await t.socket.trigger("room:list", { channelId: seeded.channelId });
@@ -403,7 +403,7 @@ test("room:list 는 사무실 방의 최근 줄도 내려 준다 — 접속 전�
 });
 
 test("다른 방으로 옮겨도(room:close) 사무실 방은 계속 듣는다 — 다만 열지 않은 방에는 못 보낸다", async () => {
-  const seeded = await seedChannelWithProfiles({ placedActive: 1 });
+  const seeded = await seedChannelWithNpcs({ placedActive: 1 });
   const t = setup();
   await t.register(seeded);
   await t.socket.trigger("room:list", { channelId: seeded.channelId });
@@ -424,7 +424,7 @@ test("다른 방으로 옮겨도(room:close) 사무실 방은 계속 듣는다 �
 });
 
 test("그룹 방은 예전대로다 — 닫으면 방송을 받지 않는다", async () => {
-  const seeded = await seedChannelWithProfiles({ placedActive: 1 });
+  const seeded = await seedChannelWithNpcs({ placedActive: 1 });
   const t = setup();
   await t.register(seeded);
   await t.socket.trigger("room:list", { channelId: seeded.channelId });
@@ -446,7 +446,7 @@ test("그룹 방은 예전대로다 — 닫으면 방송을 받지 않는다", a
 });
 
 test("채널 권한이 없으면 사무실 방에 들어가지 못한다", async () => {
-  const seeded = await seedChannelWithProfiles({ placedActive: 1 });
+  const seeded = await seedChannelWithNpcs({ placedActive: 1 });
   const t = setup({ allowed: false });
   await t.register(seeded);
   await t.socket.trigger("room:list", { channelId: seeded.channelId });

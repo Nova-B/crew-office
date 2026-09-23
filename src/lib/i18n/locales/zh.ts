@@ -1349,7 +1349,6 @@ const zh: Record<string, string> = {
   "game.roster.title": "NPC 考勤表",
   "game.roster.hire": "新员工",
   "game.roster.dormant": "休息中",
-  "game.roster.shared": "已共享",
   "game.roster.inMeeting": "正在开会，无法下班",
   "game.roster.needsGateway": "请先为频道连接网关",
   "game.inviteFriend": "邀请好友",

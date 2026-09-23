@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { setupThrowawaySqlite, seedChannelWithProfiles } from "@/test-setup/npc-seed";
+import { setupThrowawaySqlite, seedChannelWithNpcs } from "@/test-setup/npc-seed";
 
 setupThrowawaySqlite("room-runtime-test");
 
@@ -64,7 +64,6 @@ function injected(
         sessionKeyPrefix: n.id,
         adapterType: "mock",
         adapterConfig: {},
-        hermesProfileId: null,
         _channelId: channelId,
         _name: n.name,
         role: "Participant",
@@ -85,7 +84,7 @@ function injected(
 }
 
 async function seedRoom(opts: { npcCount: number; memberCount: number }) {
-  const seeded = await seedChannelWithProfiles({ placedActive: opts.npcCount });
+  const seeded = await seedChannelWithNpcs({ placedActive: opts.npcCount });
   const room = await rooms.createRoom({
     channelId: seeded.channelId,
     name: "기획",
@@ -122,7 +121,7 @@ test("group 방의 참가자는 출근 NPC 전부가 아니라 그 방의 NPC �
 });
 
 test("mention 정책(office)은 지명한 NPC 만 깨운다", async () => {
-  const seeded = await seedChannelWithProfiles({ placedActive: 2 });
+  const seeded = await seedChannelWithNpcs({ placedActive: 2 });
   const office = await rooms.ensureOfficeRoom(seeded.channelId, seeded.userId);
   const emitted: Emitted[] = [];
   const deps = injected(seeded.channelId, [

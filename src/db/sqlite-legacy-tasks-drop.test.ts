@@ -59,7 +59,7 @@ test("옛 테이블이 남은 기존 DB 는 ensureSqliteCompatibility 가 지운
   for (const t of LEGACY_TASK_TABLES)
     assert.equal(tableExists(db, t), false, `${t} 는 지워져야 한다`);
   // 다른 테이블은 건드리지 않는다.
-  for (const t of ["npcs", "channels", "channel_kanban_boards", "meeting_minutes"]) {
+  for (const t of ["npcs", "channels", "chat_rooms", "meeting_minutes"]) {
     assert.ok(tableExists(db, t), t);
   }
 });

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { setupThrowawaySqlite, seedChannelWithProfiles } from "@/test-setup/npc-seed";
+import { setupThrowawaySqlite, seedChannelWithNpcs } from "@/test-setup/npc-seed";
 
 setupThrowawaySqlite("npc-config-assembly-test");
 
@@ -19,7 +19,7 @@ test("고용된 NPC 는 agent_config 가 비어도 회의 규약을 받는다", 
   const { getNpcConfigsForChannel } = await import("./socket-handlers");
 
   // crew-office: Hermes 고용 경로가 사라져 CLI 직원 씨앗을 직접 심는다(agent_config 는 빈 값).
-  const { channelId } = await seedChannelWithProfiles({ adapterType: "claude", unplaced: 1 });
+  const { channelId } = await seedChannelWithNpcs({ adapterType: "claude", unplaced: 1 });
 
   const [config] = await getNpcConfigsForChannel(channelId);
   assert.ok(config, "고용된 NPC 가 명단에 있어야 한다");
@@ -34,7 +34,7 @@ test("휴면 NPC 는 대화 명단에서 빠지고, 자리 미정은 남는다",
   const { getNpcConfigsForChannel } = await import("./socket-handlers");
   const { selectChannelNpcs } = await import("@/lib/npc-projection");
 
-  const { channelId } = await seedChannelWithProfiles({ unplaced: 1, dormant: 1 });
+  const { channelId } = await seedChannelWithNpcs({ unplaced: 1, dormant: 1 });
   const roster = await selectChannelNpcs(channelId, { roster: true });
   assert.equal(roster.length, 2, "출근부에는 둘 다 보인다");
 
@@ -62,7 +62,7 @@ test("agent_config 가 없는 직원도 한국어 사용자의 요청이면 한�
   const { getNpcConfigsForChannel } = await import("./socket-handlers");
 
   // crew-office: Hermes 고용 경로가 사라져 CLI 직원 씨앗을 직접 심는다(agent_config 는 빈 값).
-  const { channelId } = await seedChannelWithProfiles({ adapterType: "claude", unplaced: 1 });
+  const { channelId } = await seedChannelWithNpcs({ adapterType: "claude", unplaced: 1 });
 
   const [config] = await getNpcConfigsForChannel(channelId, "ko");
   assert.match(config.instructions ?? "", KO_CONTRACT);

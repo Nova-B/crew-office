@@ -15,29 +15,8 @@ const { ensureSqliteBaseSchema } = require("./sqlite-base-schema.js") as {
   ensureSqliteBaseSchema: (sqlite: BetterSqlite3.Database) => void;
 };
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const { migrateNpcsToProfileOwnership } = require("./sqlite-npc-profile-ownership.js") as {
-  migrateNpcsToProfileOwnership: (sqlite: BetterSqlite3.Database) => unknown;
-};
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { allowCliEmployees } = require("./sqlite-npc-cli-employees.js") as {
-  allowCliEmployees: (sqlite: BetterSqlite3.Database) => unknown;
-};
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const { ensureChatRoomTables } = require("./sqlite-chat-rooms.js") as {
   ensureChatRoomTables: (sqlite: BetterSqlite3.Database) => void;
-};
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { ensureKanbanCronBookkeeping } = require("./sqlite-kanban-cron-bookkeeping.js") as {
-  ensureKanbanCronBookkeeping: (sqlite: BetterSqlite3.Database) => void;
-};
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { ensureProjectRegistry } = require("./sqlite-project-registry.js") as {
-  ensureProjectRegistry: (sqlite: BetterSqlite3.Database) => void;
-};
-
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { ensureNpcPanelReads } = require("./sqlite-npc-panel-reads.js") as {
-  ensureNpcPanelReads: (sqlite: BetterSqlite3.Database) => void;
 };
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { dropLegacyTaskTables } = require("./sqlite-legacy-tasks-drop.js") as {
@@ -46,6 +25,10 @@ const { dropLegacyTaskTables } = require("./sqlite-legacy-tasks-drop.js") as {
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { retireMapEditor } = require("./sqlite-map-editor-drop.js") as {
   retireMapEditor: (sqlite: BetterSqlite3.Database) => void;
+};
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { dropHermesSchema } = require("./sqlite-drop-hermes.js") as {
+  dropHermesSchema: (sqlite: BetterSqlite3.Database) => unknown;
 };
 
 const DB_TYPE = (
@@ -65,9 +48,7 @@ export function jsonForDb(value: unknown): unknown {
 
 /**
  * "Now" for a timestamp column — PG driver wants a `Date`, SQLite's TEXT columns want
- * an ISO string. The single definition; callers that redefined this locally
- * (hermes-profiles.ts, gateway-resources.ts, provider-resources.ts, dm-hub.ts,
- * hermes-dispatch.ts) predate this export and are out of scope for this change.
+ * an ISO string. The single definition.
  */
 export function nowForDb(): Date {
   return (isPostgres ? new Date() : new Date().toISOString()) as unknown as Date;
@@ -85,13 +66,6 @@ export const users = activeSchema.users;
 export const characters = activeSchema.characters;
 export const groups = activeSchema.groups;
 export const channels = activeSchema.channels;
-export const gatewayResources = activeSchema.gatewayResources;
-export const gatewayShares = activeSchema.gatewayShares;
-export const hermesProfiles = activeSchema.hermesProfiles;
-export const providerResources = activeSchema.providerResources;
-export const providerShares = activeSchema.providerShares;
-export const channelGatewayBindings = activeSchema.channelGatewayBindings;
-export const channelKanbanBoards = activeSchema.channelKanbanBoards;
 export const groupMembers = activeSchema.groupMembers;
 export const groupInvites = activeSchema.groupInvites;
 export const groupJoinRequests = activeSchema.groupJoinRequests;
@@ -102,17 +76,9 @@ export const npcs = activeSchema.npcs;
 export const npcSessions = activeSchema.npcSessions;
 export const chatMessages = activeSchema.chatMessages;
 export const meetingMinutes = activeSchema.meetingMinutes;
-export const channelProjects = activeSchema.channelProjects;
-export const channelSubprojects = activeSchema.channelSubprojects;
-export const approvals = activeSchema.approvals;
-export const approvalTargets = activeSchema.approvalTargets;
 export const chatRooms = activeSchema.chatRooms;
 export const chatRoomMembers = activeSchema.chatRoomMembers;
 export const chatRoomMessages = activeSchema.chatRoomMessages;
-// 직원 패널의 탭별 열람 상태(src/lib/npc-panel-reads.ts 가 읽고 쓴다).
-export const npcPanelReads = activeSchema.npcPanelReads;
-// DeskRPG 가 만든 Hermes cron 작업의 출처 장부(src/lib/cron-origins.ts 가 읽고 쓴다).
-export const cronJobOrigins = activeSchema.cronJobOrigins;
 
 // Use PG type for all API routes — Drizzle's runtime API is identical across dialects.
 type DbInstance = NodePgDatabase<typeof pgSchema>;
@@ -369,65 +335,6 @@ export function ensureSqliteCompatibility(sqlite: BetterSqlite3.Database) {
     );
     CREATE INDEX IF NOT EXISTS idx_user_permission_overrides_group_id ON user_permission_overrides(group_id);
     CREATE INDEX IF NOT EXISTS idx_user_permission_overrides_user_id ON user_permission_overrides(user_id);
-    CREATE TABLE IF NOT EXISTS gateway_resources (
-      id TEXT PRIMARY KEY NOT NULL,
-      owner_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      display_name TEXT NOT NULL,
-      base_url TEXT NOT NULL,
-      token_encrypted TEXT NOT NULL,
-      paired_device_id TEXT,
-      last_validated_at TEXT,
-      last_validation_status TEXT,
-      last_validation_error TEXT,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS idx_gateway_resources_owner_user_id ON gateway_resources(owner_user_id);
-    CREATE TABLE IF NOT EXISTS gateway_shares (
-      id TEXT PRIMARY KEY NOT NULL,
-      gateway_id TEXT NOT NULL REFERENCES gateway_resources(id) ON DELETE CASCADE,
-      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      role TEXT NOT NULL DEFAULT 'use',
-      created_at TEXT NOT NULL,
-      UNIQUE(gateway_id, user_id)
-    );
-    CREATE INDEX IF NOT EXISTS idx_gateway_shares_gateway_id ON gateway_shares(gateway_id);
-    CREATE INDEX IF NOT EXISTS idx_gateway_shares_user_id ON gateway_shares(user_id);
-    CREATE UNIQUE INDEX IF NOT EXISTS gateway_shares_gateway_user_idx ON gateway_shares(gateway_id, user_id);
-    CREATE TABLE IF NOT EXISTS provider_resources (
-      id TEXT PRIMARY KEY NOT NULL,
-      owner_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      provider_type TEXT NOT NULL,
-      display_name TEXT,
-      auth_method TEXT NOT NULL,
-      credentials_encrypted TEXT,
-      base_url TEXT,
-      last_validated_at TEXT,
-      last_validation_status TEXT,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS idx_provider_resources_owner ON provider_resources(owner_user_id);
-    CREATE TABLE IF NOT EXISTS provider_shares (
-      id TEXT PRIMARY KEY NOT NULL,
-      provider_id TEXT NOT NULL REFERENCES provider_resources(id) ON DELETE CASCADE,
-      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      role TEXT NOT NULL DEFAULT 'use',
-      created_at TEXT NOT NULL,
-      UNIQUE(provider_id, user_id)
-    );
-    CREATE INDEX IF NOT EXISTS idx_provider_shares_provider ON provider_shares(provider_id);
-    CREATE UNIQUE INDEX IF NOT EXISTS provider_shares_provider_user_idx ON provider_shares(provider_id, user_id);
-    CREATE TABLE IF NOT EXISTS channel_gateway_bindings (
-      id TEXT PRIMARY KEY NOT NULL,
-      channel_id TEXT NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
-      gateway_id TEXT NOT NULL REFERENCES gateway_resources(id) ON DELETE CASCADE,
-      bound_by_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
-      bound_at TEXT NOT NULL,
-      UNIQUE(channel_id)
-    );
-    CREATE INDEX IF NOT EXISTS idx_channel_gateway_bindings_gateway_id ON channel_gateway_bindings(gateway_id);
-    CREATE UNIQUE INDEX IF NOT EXISTS channel_gateway_bindings_channel_idx ON channel_gateway_bindings(channel_id);
     CREATE TABLE IF NOT EXISTS npc_sessions (
       id TEXT PRIMARY KEY NOT NULL,
       npc_id TEXT NOT NULL REFERENCES npcs(id) ON DELETE CASCADE,
@@ -460,45 +367,27 @@ export function ensureSqliteCompatibility(sqlite: BetterSqlite3.Database) {
   applySqliteAlterStatements(sqlite, "npcs", [
     "ALTER TABLE npcs ADD COLUMN adapter_type TEXT NOT NULL DEFAULT 'hermes'",
     "ALTER TABLE npcs ADD COLUMN adapter_config TEXT",
-    // P1 이 server-db.js 쪽에만 더해서 API 경로에는 없었다. 이 컬럼이 없으면 Hermes
-    // 프로필 바인딩이 저장되지 않고, 프로필을 읽는 쿼리는 "no such column" 으로 죽는다.
-    "ALTER TABLE npcs ADD COLUMN hermes_profile_id TEXT REFERENCES hermes_profiles(id) ON DELETE SET NULL",
     "ALTER TABLE npcs ADD COLUMN agent_config TEXT",
+    // 프로필 소유 이관(0008) 이전의 아주 옛 npcs 에는 출근 여부 열이 없다.
+    "ALTER TABLE npcs ADD COLUMN active INTEGER NOT NULL DEFAULT 1",
   ]);
   // 컬럼이 갖춰진 다음에 은퇴 마이그레이션을 돌린다(이관 대상 열이 둘 다 있어야 한다).
   retireOpenclawConfig(sqlite);
-  // hermes_profiles.appearance 는 ALTER 로 되지만 npcs 의 NOT NULL·FK·유니크는 재생성이 필요하다.
-  applySqliteAlterStatements(sqlite, "hermes_profiles", [
-    "ALTER TABLE hermes_profiles ADD COLUMN appearance TEXT",
-  ]);
-  migrateNpcsToProfileOwnership(sqlite);
-  // crew-office: 프로필 소유 이관이 만든 NOT NULL 을 풀어 CLI 직원을 허용한다. server-db.js 와 같은 순서.
-  allowCliEmployees(sqlite);
   ensureChatRoomTables(sqlite);
-  // chat_room_messages 가 있어야 notice_json 을 더할 수 있으니 방 테이블 다음이다.
-  ensureKanbanCronBookkeeping(sqlite);
-  // npcs 가 갖춰진 다음이어야 FK 가 걸린다. server-db.js 와 같은 순서.
-  ensureNpcPanelReads(sqlite);
-  // 보드 표의 PK 를 대리 키로 옮기고(기존 DB 만) 프로젝트·서브프로젝트 메타 표를 만든다.
-  // 반드시 보드 표가 선 다음이고, 메타 표의 FK 가 가리킬 대상이라 재구축이 먼저다.
-  ensureProjectRegistry(sqlite);
+  // 회의 결과 알림의 구조화 페이로드. 방 테이블이 선 다음이라야 더할 수 있다.
+  applySqliteAlterStatements(sqlite, "chat_room_messages", [
+    "ALTER TABLE chat_room_messages ADD COLUMN notice_json TEXT",
+  ]);
   // 2026-04 태스크 시스템 폐기 — 옛 태스크·보고 테이블은 데이터째 지운다.
   dropLegacyTaskTables(sqlite);
   // 맵 에디터 폐기 — 옛 외형을 오피스 룩으로 접고 맵 에디터 표 8개를 지운다.
-  // hermes_profiles.appearance ALTER 뒤라야 그 표의 외형까지 변환된다.
   retireMapEditor(sqlite);
+  // crew-office slice 3: Hermes 시절 표·npcs.hermes_profile_id·notice_json 을 걷어낸다.
+  // 옛 모양을 앞 단계들이 다 정리한 뒤라야 하므로 스키마 단계 중 **마지막**이다. server-db.js 와 같은 순서.
+  dropHermesSchema(sqlite);
   // 이 함수와 server-db.js 의 동명 함수는 **서로 다른 경로**다 — API 라우트는 이쪽,
   // 소켓 서버는 저쪽을 탄다. 한쪽에만 컬럼을 더하면 그 경로에서만 조용히
   // "no such column" 이 난다(실제로 그렇게 났다). 새 컬럼은 양쪽에 넣을 것.
-  applySqliteAlterStatements(sqlite, "gateway_resources", [
-    "ALTER TABLE gateway_resources ADD COLUMN local_discovery_opted_in_at TEXT",
-    "ALTER TABLE gateway_resources ADD COLUMN local_discovery_opted_in_by TEXT REFERENCES users(id) ON DELETE SET NULL",
-    // `GET /deskrpg/info` 판정 캐시. src/lib/hermes/plugin-capability.ts 의 PluginStatus 문자열이
-    // plugin_status 에 들어간다 — 이 컬럼이 없으면 기존 DB 를 쓰는 사용자에게서만 조용히 깨진다.
-    "ALTER TABLE gateway_resources ADD COLUMN plugin_status TEXT",
-    "ALTER TABLE gateway_resources ADD COLUMN plugin_version TEXT",
-    "ALTER TABLE gateway_resources ADD COLUMN plugin_checked_at TEXT",
-  ]);
 
   dedupeSqliteGroupJoinRequests(sqlite);
   sqlite.exec(

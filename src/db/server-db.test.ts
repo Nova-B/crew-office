@@ -210,24 +210,26 @@ test("server-db sqlite bootstraps base tables for a fresh empty database", () =>
   const npcColsByName = Object.fromEntries(npcCols.map((c) => [c.name, c.notnull]));
   assert.equal(npcColsByName.active, 1, "신규 DB 의 npcs 에는 active 가 NOT NULL 로 있어야 한다");
 
-  const hermesProfileCols = sqlite.prepare("PRAGMA table_info(hermes_profiles)").all() as Array<{
-    name: string;
-  }>;
   assert.ok(
-    hermesProfileCols.some((c) => c.name === "appearance"),
-    "신규 DB 의 hermes_profiles 에는 appearance 가 있어야 한다",
+    !("hermes_profile_id" in npcColsByName),
+    "신규 DB 의 npcs 에는 hermes_profile_id 가 없다",
   );
+  for (const dropped of ["hermes_profiles", "gateway_resources", "channel_kanban_boards"]) {
+    assert.ok(
+      !tableNames.includes(dropped),
+      `Hermes 시절 표 ${dropped} 는 신규 DB 에 만들지 않는다`,
+    );
+  }
 });
 
-test("server-db sqlite boot path migrates a legacy npcs table to profile ownership", () => {
+test("server-db sqlite boot path strips Hermes from a legacy npcs table without losing rows", () => {
   // 소켓 서버(server-db.js)의 ensureSqliteCompatibility 와 API 라우트(src/db/index.ts)의
-  // 동명 함수는 서로 다른 부트 경로다. 한쪽만 migrateNpcsToProfileOwnership 을 부르면
-  // 그 경로에서만 npcs 가 낡은 정의로 남는다 — 이 테스트가 두 경로의 동등성을 고정한다.
+  // 동명 함수는 서로 다른 부트 경로다. 한쪽만 dropHermesSchema 를 부르면 그 경로에서만
+  // npcs 가 낡은 정의로 남는다 — 이 테스트가 소켓 서버 경로를 고정한다.
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "deskrpg-server-db-legacy-npcs-"));
   const sqlitePath = path.join(tempDir, "legacy-npcs.sqlite");
 
-  // 서버 부트를 태우기 전에 실 파일에 레거시 스키마를 미리 심는다 —
-  // sqlite-npc-profile-ownership.test.ts 의 legacyDb() 와 같은 모양.
+  // 서버 부트를 태우기 전에 실 파일에 레거시(프로필 소유 이관 전) 스키마를 미리 심는다.
   const seed = new Database(sqlitePath);
   seed.pragma("foreign_keys = ON");
   seed.exec(`
@@ -276,17 +278,26 @@ test("server-db sqlite boot path migrates a legacy npcs table to profile ownersh
   }>;
   assert.ok(
     npcCols.some((c) => c.name === "active" && c.notnull === 1),
-    "소켓 서버 부트 경로도 레거시 npcs 를 active NOT NULL 정의로 재생성해야 한다",
+    "소켓 서버 부트 경로도 레거시 npcs 에 active NOT NULL 을 갖춰야 한다",
+  );
+  assert.ok(
+    !npcCols.some((c) => c.name === "hermes_profile_id"),
+    "소켓 서버 부트 경로도 npcs.hermes_profile_id 를 걷어내야 한다",
   );
 
-  const fk = sqlite.prepare("PRAGMA foreign_key_list(npcs)").all() as Array<{
-    table: string;
-    on_delete: string;
-  }>;
-  const profileFk = fk.find((f) => f.table === "hermes_profiles");
-  assert.equal(
-    profileFk?.on_delete,
-    "CASCADE",
-    "소켓 서버 부트 경로도 hermes_profile_id 를 CASCADE FK 로 재생성해야 한다",
+  const fk = sqlite.prepare("PRAGMA foreign_key_list(npcs)").all() as Array<{ table: string }>;
+  assert.deepEqual(
+    fk.map((f) => f.table),
+    ["channels"],
   );
+  const tables = (
+    sqlite.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as Array<{
+      name: string;
+    }>
+  ).map((r) => r.name);
+  assert.ok(!tables.includes("hermes_profiles"), "hermes_profiles 는 지워진다");
+
+  const old = sqlite.prepare("SELECT id, name, active FROM npcs WHERE id = 'old'").get();
+  assert.deepEqual({ ...(old as object) }, { id: "old", name: "old", active: 1 });
+  sqlite.close();
 });

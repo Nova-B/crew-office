@@ -4,10 +4,8 @@ import test from "node:test";
 import { buildOfficeEnvironment } from "@/game/three/office-environments";
 import {
   setupThrowawaySqlite,
-  seedChannelWithProfiles,
-  seedGateway,
+  seedChannelWithNpcs,
   seedChannel,
-  seedHermesProfile,
   seedNpc,
   seedUser,
 } from "@/test-setup/npc-seed";
@@ -23,7 +21,7 @@ async function positions(channelId: string) {
 test("자리 없는 직원을 번호 순으로 앉히고, 만석이면 세운다", async () => {
   const { placeUnplacedNpcs, channelSeats } = await import("./npc-seating");
   const { seatNumberAt } = await import("./seat-assignment");
-  const { channelId } = await seedChannelWithProfiles({ unplaced: 6, mapData: executiveMap() });
+  const { channelId } = await seedChannelWithNpcs({ unplaced: 6, mapData: executiveMap() });
 
   assert.deepEqual(await placeUnplacedNpcs(channelId), { seated: 3, standing: 3, failed: 0 });
   const seats = (await channelSeats(channelId))!;
@@ -42,7 +40,7 @@ test("자리 없는 직원을 번호 순으로 앉히고, 만석이면 세운다
 
 test("이미 자리 있는 직원과 휴면 직원은 건드리지 않는다", async () => {
   const { placeUnplacedNpcs } = await import("./npc-seating");
-  const { channelId } = await seedChannelWithProfiles({
+  const { channelId } = await seedChannelWithNpcs({
     placedActive: 1,
     dormant: 1,
     unplaced: 1,
@@ -59,7 +57,7 @@ test("이미 자리 있는 직원과 휴면 직원은 건드리지 않는다", a
 
 test("맵을 읽을 수 없는 채널은 실패로 세고 던지지 않는다", async () => {
   const { placeUnplacedNpcs } = await import("./npc-seating");
-  const { channelId } = await seedChannelWithProfiles({ unplaced: 2 });
+  const { channelId } = await seedChannelWithNpcs({ unplaced: 2 });
   assert.deepEqual(await placeUnplacedNpcs(channelId), { seated: 0, standing: 0, failed: 2 });
 });
 
@@ -74,12 +72,9 @@ test("존재하지 않는 채널이어도 던지지 않고 failed 0 을 돌려�
 test("positionX 만 있고 positionY 가 없는 직원은 미배치로 보고 두 좌표 모두 채워 한 번만 센다", async () => {
   const { placeUnplacedNpcs } = await import("./npc-seating");
   const user = await seedUser("half-placed-owner");
-  const gateway = await seedGateway(user.id);
   const channel = await seedChannel(user.id, undefined, executiveMap());
-  const profile = await seedHermesProfile(gateway.id);
   const npc = await seedNpc({
     channelId: channel.id,
-    hermesProfileId: profile.id,
     positionX: 3,
     positionY: null,
     active: true,
@@ -95,7 +90,7 @@ test("positionX 만 있고 positionY 가 없는 직원은 미배치로 보고 �
 
 test("failed > 0 이면 console.warn 으로 남긴다", async () => {
   const { placeUnplacedNpcs } = await import("./npc-seating");
-  const { channelId } = await seedChannelWithProfiles({ unplaced: 2 }); // 맵 없음 → 전원 실패
+  const { channelId } = await seedChannelWithNpcs({ unplaced: 2 }); // 맵 없음 → 전원 실패
   const original = console.warn;
   const calls: unknown[][] = [];
   console.warn = (...args: unknown[]) => calls.push(args);
@@ -115,8 +110,8 @@ test("failed > 0 이면 console.warn 으로 남긴다", async () => {
 
 test("placeAllUnplacedNpcs 는 미배치 직원이 있는 채널을 모두 처리한다", async () => {
   const { placeAllUnplacedNpcs } = await import("./npc-seating");
-  const a = await seedChannelWithProfiles({ unplaced: 1, mapData: executiveMap() });
-  const b = await seedChannelWithProfiles({ unplaced: 1, mapData: executiveMap() });
+  const a = await seedChannelWithNpcs({ unplaced: 1, mapData: executiveMap() });
+  const b = await seedChannelWithNpcs({ unplaced: 1, mapData: executiveMap() });
   const result = await placeAllUnplacedNpcs();
   assert.ok(result.channels >= 2 && result.seated >= 2);
   for (const c of [a, b])
@@ -129,7 +124,7 @@ test("대표석에 이미 앉아 있던 직원은 부팅 이행 때 다른 자�
   const { db, npcs } = await import("@/db");
   const { eq } = await import("drizzle-orm");
   // 대표석이 1번 자리이던 시절에 배치된 직원을 재현한다: executive 맵의 (4,5).
-  const { channelId } = await seedChannelWithProfiles({ unplaced: 1, mapData: executiveMap() });
+  const { channelId } = await seedChannelWithNpcs({ unplaced: 1, mapData: executiveMap() });
   await db.update(npcs).set({ positionX: 4, positionY: 5 }).where(eq(npcs.channelId, channelId));
 
   const result = await placeAllUnplacedNpcs();

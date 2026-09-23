@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { setupThrowawaySqlite, seedChannelWithProfiles } from "@/test-setup/npc-seed";
+import { setupThrowawaySqlite, seedChannelWithNpcs } from "@/test-setup/npc-seed";
 
 setupThrowawaySqlite("npc-roster-socket-test");
 
@@ -44,7 +44,7 @@ function fakeBroker(npcIds: string[]) {
 
 async function setup(opts: { owner?: boolean; npcs?: number } = {}) {
   const { registerNpcRosterHandlers } = await import("./npc-roster-socket");
-  const { channelId, npcIds, userId } = await seedChannelWithProfiles({
+  const { channelId, npcIds, userId } = await seedChannelWithNpcs({
     placedActive: opts.npcs ?? 1,
   });
   const emitted: RecordedEmit[] = [];
@@ -131,7 +131,7 @@ test("채널 소유자가 아니면 forbidden", async () => {
 test("다른 채널의 NPC 는 자기 채널 소유권으로 건드릴 수 없다", async () => {
   const { selectNpcById } = await import("@/lib/npc-projection");
   const { channelId, emitted, socket } = await setup();
-  const other = await seedChannelWithProfiles({ placedActive: 1 });
+  const other = await seedChannelWithNpcs({ placedActive: 1 });
 
   await socket.trigger("npc:set-active", { channelId, npcId: other.npcIds[0], active: false });
   assert.deepEqual(emitted.at(-1), [

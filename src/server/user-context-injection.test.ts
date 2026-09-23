@@ -6,14 +6,7 @@ import { Server } from "socket.io";
 import { io as connect, type Socket } from "socket.io-client";
 import { SignJWT } from "jose";
 import { eq } from "drizzle-orm";
-import {
-  setupThrowawaySqlite,
-  seedUser,
-  seedChannel,
-  seedGateway,
-  seedHermesProfile,
-  seedNpc,
-} from "../test-setup/npc-seed";
+import { setupThrowawaySqlite, seedUser, seedChannel, seedNpc } from "../test-setup/npc-seed";
 import oldMap from "../lib/fixtures/official-agency-v2.json";
 import { deriveChannelMotionLayout } from "./channel-motion-layout";
 import { formatReportFormat } from "../lib/report-format";
@@ -53,11 +46,8 @@ test("DM·회의에서 게이트웨이로 나간 본문 앞머리에 [대화 상
     appearance: "{}",
   });
   const channel = await seedChannel(user.id);
-  const gateway = await seedGateway(user.id);
-  const profile = await seedHermesProfile(gateway.id);
   const npc = await seedNpc({
     channelId: channel.id,
-    hermesProfileId: profile.id,
     adapterType: "user-context-capture",
     positionX: 2,
     positionY: 2,

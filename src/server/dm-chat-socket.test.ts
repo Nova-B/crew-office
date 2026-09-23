@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { SignJWT } from "jose";
 import { eq, sql } from "drizzle-orm";
-import { setupThrowawaySqlite, seedChannelWithProfiles } from "@/test-setup/npc-seed";
+import { setupThrowawaySqlite, seedChannelWithNpcs } from "@/test-setup/npc-seed";
 setupThrowawaySqlite("chat-response-dm-socket");
 import { db, characters, npcs } from "@/db";
 import { DEV_JWT_SECRET } from "@/lib/dev-constants";
@@ -11,7 +11,7 @@ import { adapterRegistry, setupSocketHandlers } from "./socket-handlers";
 
 test("DM socket sends correlated live state, restores history without duplicate IDs, and reports failed persistence", async (t) => {
   t.mock.timers.enable({ apis: ["setInterval"] });
-  const seed = await seedChannelWithProfiles({ placedActive: 1, displayName: "Sophie" });
+  const seed = await seedChannelWithNpcs({ placedActive: 1, firstName: "Sophie" });
   const [character] = await db
     .insert(characters)
     .values({ userId: seed.userId, name: "Dante", appearance: "{}" })
