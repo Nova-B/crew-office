@@ -4,6 +4,7 @@ import type { MeetingSpatialCoordinator } from "./meeting-spatial-coordinator";
 import { MEETING_NPC_STREAM_EVENT } from "./meeting-socket";
 import type { AdapterRegistry, NpcAdapter } from "../lib/adapters/types";
 import { withEmployeeWorkspace } from "../lib/adapters/employee-workspace";
+import { withCrewGuard } from "./crew-guard";
 import { isCliEmployeeAdapter, isRetiredNpcAdapter } from "../lib/cli-employees";
 import {
   ConversationEngine,
@@ -58,6 +59,8 @@ type MeetingNpcConfig = {
   passPolicy?: string | null;
   /** 이 NPC 의 턴에 실을 시스템 지시. getNpcConfig* 가 계산해 넣는다. */
   instructions?: string | null;
+  /** 실 소켓 배선(getNpcConfig*)이 채운다. CLI 직원의 일시정지 검사가 오피스를 알아야 한다. */
+  _channelId?: string;
 };
 
 type MeetingSocket = {
@@ -284,8 +287,13 @@ export async function resolveNpcAdapter(
     participant: participantBase,
     // CLI 직원은 회의에서도 자기 작업 폴더에서 돈다(employee-workspace.ts). 작업 폴더가 의미 있는 것은
     // claude·codex 뿐이다 — 다른 어댑터까지 감싸면 쓸데없는 폴더가 런타임 홈에 생긴다.
+    // 회의·방 턴에도 일시정지·터미널 인계를 적용한다(crew-guard.ts).
     adapter: isCliEmployeeAdapter(adapterType)
-      ? withEmployeeWorkspace(ctx.adapterRegistry.get(adapterType), npc.id)
+      ? withCrewGuard(
+          withEmployeeWorkspace(ctx.adapterRegistry.get(adapterType), npc.id),
+          npc.id,
+          npc._channelId,
+        )
       : ctx.adapterRegistry.get(adapterType),
     sessionKey,
   };

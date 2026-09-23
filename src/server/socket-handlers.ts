@@ -125,7 +125,7 @@ import {
   type MessengerTurnContext,
 } from "./crew-messenger";
 import type { StdioMcpServer } from "../lib/adapters/types";
-import { createCrewControl } from "./crew-control";
+import { crewControl as sharedCrewControl, withCrewGuard } from "./crew-guard";
 import nodePath from "node:path";
 import { GeminiAdapter } from "../lib/adapters/gemini-adapter.js";
 import { OpencodeAdapter as OpenCodeAdapter } from "../lib/adapters/opencode-adapter.js";
@@ -142,7 +142,8 @@ export const adapterRegistry = new AdapterRegistry();
 let crewMessenger: CrewMessenger | null = null;
 let crewIo: Server | null = null;
 // 폭주 방지: 오피스별 전체 일시정지와 동료 묻기 한도(crew-control.ts).
-const crewControl = createCrewControl();
+// 회의 코드(meeting-discussion.ts)와 같은 인스턴스를 본다 — crew-guard.ts.
+const crewControl = sharedCrewControl;
 
 /** 오피스의 제어 상태를 그 오피스의 모든 화면에 알린다. */
 function broadcastCrewState(channelId: string): void {
@@ -821,8 +822,9 @@ async function streamMeetingNpcResponse(
 
   try {
     const registered = adapterRegistry.get(adapterType);
+    // 회의 채팅에도 일시정지·터미널 인계를 적용한다(crew-guard.ts).
     const adapter = isCliEmployeeAdapter(adapterType)
-      ? withEmployeeWorkspace(registered, npcId)
+      ? withCrewGuard(withEmployeeWorkspace(registered, npcId), npcId, channelId)
       : registered;
     const { response } = await adapter.execute({
       sessionKey,
