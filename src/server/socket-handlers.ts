@@ -105,6 +105,10 @@ import { prefixUserContext, type UserContext } from "@/lib/user-context";
 import { AdapterRegistry } from "../lib/adapters/types.js";
 import { ClaudeAdapter } from "../lib/adapters/claude-adapter.js";
 import { CodexAdapter } from "../lib/adapters/codex-adapter.js";
+import {
+  ensureEmployeeWorkspace,
+  withEmployeeWorkspace,
+} from "../lib/adapters/employee-workspace.js";
 import { GeminiAdapter } from "../lib/adapters/gemini-adapter.js";
 import { OpencodeAdapter as OpenCodeAdapter } from "../lib/adapters/opencode-adapter.js";
 import {
@@ -113,6 +117,8 @@ import {
   createHermesAdapterForNpc,
   deriveHermesContextKey,
   persistHermesSessionRef,
+  persistNpcSessionRef,
+  getStoredNpcSessionRef,
   registerHermesRun,
 } from "./hermes-dispatch";
 
@@ -626,9 +632,16 @@ async function streamNpcResponse(
   // dispatchKind === "registry"
   if (adapterRegistry.has(adapterType)) {
     const adapter = adapterRegistry.get(adapterType);
+    // CLI 직원의 세션은 Hermes 와 같은 npc_sessions 행 규약(contextKey)으로 저장한다. 재개할 세션은
+    // 메모리 캐시가 아니라 DB 가 정한다 — 서버를 재시작해도 직원이 기억을 잇는다.
+    const contextKey = deriveHermesContextKey(sessionKey, sessionKeyPrefix || npcId);
 
     try {
-      const { response } = await executeDmAdapter(
+      const [cwd, resumeSessionRef] = await Promise.all([
+        ensureEmployeeWorkspace(npcId),
+        getStoredNpcSessionRef(npcId, userId, contextKey, adapterType),
+      ]);
+      const { response, session } = await executeDmAdapter(
         adapter,
         {
           sessionKey,
@@ -639,8 +652,15 @@ async function streamNpcResponse(
             typeof npcConfig.adapterConfig.model === "string"
               ? npcConfig.adapterConfig.model
               : undefined,
+          cwd,
+          resumeSessionRef,
           onDelta: (delta: string) => {
             socket.emit(responseEvent, { npcId, chunk: delta, done: false });
+          },
+          // Hermes 갈래와 같은 규칙: 도구 이름만 활동 표시로 쓰고, 빈 이름은 "끝났다"이다.
+          onToolProgress: (toolName: string) => {
+            const notice = describeActivity(toolName);
+            socket.emit("npc:activity", { npcId, activityKey: notice?.key ?? null });
           },
           timeoutMs: 180_000,
         },
@@ -648,11 +668,14 @@ async function streamNpcResponse(
         signal,
       );
       socket.emit(responseEvent, { npcId, chunk: "", done: true });
+      await persistNpcSessionRef(npcId, userId, contextKey, adapterType, session.sessionRef);
       return response || "";
     } catch (err) {
       console.error("[npc] CLI adapter error for " + npcId + ":", err);
       emitNpcSystemResponse(socket, npcId, gatewayFailureMessageCode(err));
       return "";
+    } finally {
+      socket.emit("npc:activity", { npcId, activityKey: null });
     }
   } else {
     emitNpcSystemResponse(socket, npcId, "unsupported_adapter");
@@ -782,7 +805,7 @@ async function streamMeetingNpcResponse(
         persistHermesSessionRef(npcId, userId, hermesContextKey, session.sessionRef);
     } else {
       // dispatchKind === "registry"
-      const adapter = adapterRegistry.get(adapterType);
+      const adapter = withEmployeeWorkspace(adapterRegistry.get(adapterType), npcId);
       const { response } = await adapter.execute({
         sessionKey,
         prompt,

@@ -43,10 +43,15 @@ function nowForDb() {
   return (isPostgres ? new Date() : new Date().toISOString()) as unknown as Date;
 }
 
-export async function getStoredHermesSessionRef(
+/**
+ * npc_sessions 에 저장된 세션. 어댑터 종류가 다르면 없는 것으로 본다 — 같은 직원이 Hermes 에서
+ * Claude 로 바뀌었을 때 Hermes 세션 ID 로 Claude 를 재개하려 들면 안 된다.
+ */
+export async function getStoredNpcSessionRef(
   npcId: string,
   userId: string,
   contextKey: string,
+  adapterType: string,
 ): Promise<string | null> {
   const rows = await db
     .select({ sessionRef: npcSessions.sessionRef })
@@ -56,7 +61,7 @@ export async function getStoredHermesSessionRef(
         eq(npcSessions.npcId, npcId),
         eq(npcSessions.userId, userId),
         eq(npcSessions.contextKey, contextKey),
-        eq(npcSessions.adapterType, "hermes"),
+        eq(npcSessions.adapterType, adapterType),
       ),
     )
     .limit(1);
@@ -64,10 +69,11 @@ export async function getStoredHermesSessionRef(
   return rows[0]?.sessionRef ?? null;
 }
 
-export async function persistHermesSessionRef(
+export async function persistNpcSessionRef(
   npcId: string,
   userId: string,
   contextKey: string,
+  adapterType: string,
   sessionRef: string,
 ): Promise<void> {
   const existing = await db
@@ -85,7 +91,7 @@ export async function persistHermesSessionRef(
   if (existing[0]) {
     await db
       .update(npcSessions)
-      .set({ sessionRef, adapterType: "hermes", updatedAt: nowForDb() })
+      .set({ sessionRef, adapterType, updatedAt: nowForDb() })
       .where(eq(npcSessions.id, existing[0].id));
     return;
   }
@@ -93,7 +99,7 @@ export async function persistHermesSessionRef(
   await db.insert(npcSessions).values({
     npcId,
     userId,
-    adapterType: "hermes",
+    adapterType,
     sessionType: contextKey.startsWith("task-")
       ? "task"
       : contextKey.startsWith("meeting-")
@@ -104,6 +110,23 @@ export async function persistHermesSessionRef(
     createdAt: nowForDb(),
     updatedAt: nowForDb(),
   });
+}
+
+export function getStoredHermesSessionRef(
+  npcId: string,
+  userId: string,
+  contextKey: string,
+): Promise<string | null> {
+  return getStoredNpcSessionRef(npcId, userId, contextKey, "hermes");
+}
+
+export function persistHermesSessionRef(
+  npcId: string,
+  userId: string,
+  contextKey: string,
+  sessionRef: string,
+): Promise<void> {
+  return persistNpcSessionRef(npcId, userId, contextKey, "hermes", sessionRef);
 }
 
 /**

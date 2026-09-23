@@ -40,6 +40,23 @@ const TOOL_PREFIXES: [string, string][] = [
   ["clarify", "npc.activity.askingAround"],
   ["text_to_speech", "npc.activity.speaking"],
   ["_thinking", "npc.activity.thinking"],
+  // crew-office: Claude Code·Codex CLI 직원의 도구 이름(2026-09-23 실측, adapters/fixtures).
+  ["Read", "npc.activity.readingFile"],
+  ["Glob", "npc.activity.readingFile"],
+  ["Grep", "npc.activity.readingFile"],
+  ["Write", "npc.activity.writingFile"],
+  ["Edit", "npc.activity.writingFile"],
+  ["MultiEdit", "npc.activity.writingFile"],
+  ["NotebookEdit", "npc.activity.writingFile"],
+  ["file_change", "npc.activity.writingFile"],
+  ["Bash", "npc.activity.runningCommand"],
+  ["PowerShell", "npc.activity.runningCommand"],
+  ["shell", "npc.activity.runningCommand"],
+  ["WebSearch", "npc.activity.searching"],
+  ["WebFetch", "npc.activity.browsing"],
+  ["TodoWrite", "npc.activity.organizing"],
+  ["Agent", "npc.activity.askingAround"],
+  ["mcp__office__", "npc.activity.askingAround"],
 ];
 
 const GENERIC = "npc.activity.working";

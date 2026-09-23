@@ -1,56 +1,88 @@
-import type { AdapterExecuteOptions } from "./types";
+import { CliSessionAdapter, type CliEvent, type CliTurnContext } from "./cli-session-adapter";
 
-import { CliBaseAdapter } from "./cli-base-adapter";
+type ClaudeLine = {
+  type?: string;
+  subtype?: string;
+  session_id?: string;
+  is_error?: boolean;
+  result?: string;
+  errors?: string[];
+  event?: {
+    type?: string;
+    content_block?: { type?: string; name?: string };
+    delta?: { type?: string; text?: string };
+  };
+  message?: { content?: Array<{ type?: string }> | string };
+};
 
-export class ClaudeAdapter extends CliBaseAdapter {
+/**
+ * `claude -p --output-format stream-json --verbose --include-partial-messages` 출력 파서.
+ * 이벤트 모양은 fixtures/claude-*.jsonl 이 실측 원본이다(Claude Code 2.1.280).
+ */
+export class ClaudeAdapter extends CliSessionAdapter {
   readonly type = "claude";
-  readonly cliCommand = "claude";
 
-  buildArgs(options: AdapterExecuteOptions, sessionRef?: string): string[] {
-    const args = ["-p", "-", "--output-format", "stream-json", "--dangerously-skip-permissions"];
-
-    if (options.model) {
-      args.push("--model", options.model);
-    }
-
-    if (sessionRef) {
-      args.push("--resume", sessionRef);
-    }
-
+  buildArgs({ resumeRef, instructions, model }: CliTurnContext): string[] {
+    // --verbose 는 선택이 아니다: -p 에서 stream-json 은 --verbose 없이 거부된다.
+    // 권한 확인을 끄는 옵션은 쓰지 않는다 — -p 의 기본 권한 모드는 읽기 도구만 통과시킨다.
+    // 직원별 권한 프로필(기획안 §5.2)이 생기면 그때 넓힌다.
+    const args = [
+      "-p",
+      "-",
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--include-partial-messages",
+    ];
+    if (model) args.push("--model", model);
+    if (resumeRef) args.push("--resume", resumeRef);
+    if (instructions) args.push("--append-system-prompt", instructions);
     return args;
   }
 
-  parseStreamChunk(raw: string): string {
+  parseLine(line: string): CliEvent[] {
+    let parsed: ClaudeLine;
     try {
-      const parsed = JSON.parse(raw) as {
-        type?: string;
-        text?: string;
-        delta?: { text?: string };
-        content?: string;
-        message?: { content?: Array<{ text?: string }> | string };
-        content_block?: { text?: string };
-      };
-
-      if (typeof parsed.content === "string") return parsed.content;
-      if (typeof parsed.delta?.text === "string") return parsed.delta.text;
-      if (typeof parsed.content_block?.text === "string") return parsed.content_block.text;
-      if (typeof parsed.message?.content === "string") return parsed.message.content;
-      if (Array.isArray(parsed.message?.content)) {
-        return parsed.message.content
-          .map((entry) => entry.text)
-          .filter((text): text is string => typeof text === "string")
-          .join("");
-      }
-      if (parsed.type?.includes("assistant") && typeof parsed.text === "string") {
-        return parsed.text;
-      }
-      return "";
+      parsed = JSON.parse(line) as ClaudeLine;
     } catch {
-      return "";
+      return [];
     }
-  }
 
-  extractSessionId(fullOutput: string): string | undefined {
-    return fullOutput.match(/"session(?:_id|Id|Ref)"\s*:\s*"([^"]+)"/)?.[1];
+    switch (parsed.type) {
+      case "system":
+        // 세션 ID 는 init 에서만 받는다. 결과 이벤트의 session_id 는 재개 실패 때도 요청한 ID 를 그대로 싣는다.
+        return parsed.subtype === "init" && parsed.session_id
+          ? [{ kind: "session", id: parsed.session_id }]
+          : [];
+      case "stream_event": {
+        const event = parsed.event;
+        if (event?.type === "content_block_start") {
+          if (event.content_block?.type === "text") return [{ kind: "text_block" }];
+          if (event.content_block?.type === "tool_use" && event.content_block.name)
+            return [{ kind: "tool", name: event.content_block.name }];
+          return [];
+        }
+        if (event?.type === "content_block_delta" && event.delta?.type === "text_delta")
+          return [{ kind: "text", text: event.delta.text ?? "" }];
+        return [];
+      }
+      case "user": {
+        const content = parsed.message?.content;
+        return Array.isArray(content) && content.some((c) => c.type === "tool_result")
+          ? [{ kind: "tool_done" }]
+          : [];
+      }
+      case "result":
+        return [
+          {
+            kind: "result",
+            isError: parsed.is_error === true,
+            text: parsed.result,
+            errors: parsed.errors,
+          },
+        ];
+      default:
+        return [];
+    }
   }
 }

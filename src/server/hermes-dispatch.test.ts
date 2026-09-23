@@ -146,4 +146,29 @@ describe("hermes session persistence", () => {
     await persistHermesSessionRef(npc.id, user.id, contextKey, "session-2");
     assert.equal(await getStoredHermesSessionRef(npc.id, user.id, contextKey), "session-2");
   });
+
+  test("CLI 직원 세션도 같은 행에 저장되고, 어댑터 종류가 바뀌면 이전 세션을 재개하지 않는다", async () => {
+    const { getStoredNpcSessionRef, persistNpcSessionRef, getStoredHermesSessionRef } =
+      await import("./hermes-dispatch");
+    const user = await seedUser();
+    const channel = await seedChannel(user.id);
+    const npc = await seedNpc(channel.id, user.id);
+    const contextKey = "dm-" + user.id;
+
+    await persistNpcSessionRef(npc.id, user.id, contextKey, "claude", "claude-session");
+    assert.equal(
+      await getStoredNpcSessionRef(npc.id, user.id, contextKey, "claude"),
+      "claude-session",
+    );
+    // 같은 직원이 Codex 로 바뀌면 Claude 세션 ID 로 Codex 를 재개하려 들면 안 된다.
+    assert.equal(await getStoredNpcSessionRef(npc.id, user.id, contextKey, "codex"), null);
+    assert.equal(await getStoredHermesSessionRef(npc.id, user.id, contextKey), null);
+
+    await persistNpcSessionRef(npc.id, user.id, contextKey, "codex", "codex-thread");
+    assert.equal(
+      await getStoredNpcSessionRef(npc.id, user.id, contextKey, "codex"),
+      "codex-thread",
+    );
+    assert.equal(await getStoredNpcSessionRef(npc.id, user.id, contextKey, "claude"), null);
+  });
 });

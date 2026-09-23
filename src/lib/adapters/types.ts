@@ -31,6 +31,16 @@ export interface AdapterExecuteOptions {
   timeoutMs?: number;
   userId?: string;
   projectId?: string;
+  /**
+   * CLI 백엔드의 작업 폴더. Claude Code 는 세션을 작업 폴더별로 저장하므로, 같은 직원은 항상 같은
+   * 폴더로 불러야 재개가 된다. 없으면 `projectId` 작업 공간, 그것도 없으면 서버 cwd.
+   */
+  cwd?: string;
+  /**
+   * 호출부가 영속 저장소(npc_sessions)에서 읽어 온 재개할 세션. `null` 이면 새 세션을 강제하고,
+   * `undefined` 면 어댑터의 메모리 캐시를 쓴다. `multiParty` 턴에서는 무시된다.
+   */
+  resumeSessionRef?: string | null;
 }
 
 export interface AdapterAttachment {

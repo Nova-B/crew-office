@@ -1,0 +1,6 @@
+{"type":"thread.started","thread_id":"01a0ccbd-f522-7f00-8c52-5ef9e3d71ae8"}
+{"type":"turn.started"}
+{"type":"item.started","item":{"id":"item_0","type":"command_execution","command":"\"C:\\\\Windows\\\\System32\\\\WindowsPowerShell\\\\v1.0\\\\powershell.exe\" -Command 'echo crew-check'","aggregated_output":"","exit_code":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_0","type":"command_execution","command":"\"C:\\\\Windows\\\\System32\\\\WindowsPowerShell\\\\v1.0\\\\powershell.exe\" -Command 'echo crew-check'","aggregated_output":"crew-check\r\n","exit_code":0,"status":"completed"}}
+{"type":"item.completed","item":{"id":"item_1","type":"agent_message","text":"I’m Mina, and the command output was `crew-check`."}}
+{"type":"turn.completed","usage":{"input_tokens":31003,"cached_input_tokens":7296,"cache_write_input_tokens":0,"output_tokens":46,"reasoning_output_tokens":0}}

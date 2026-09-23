@@ -19,19 +19,8 @@ test("CLI adapters expose the expected type names", () => {
   assert.equal(new OpencodeAdapter().type, "opencode");
 });
 
+// Claude·Codex 는 CliSessionAdapter 로 옮겨 인자·파서 계약이 cli-session-adapter.test.ts 에 있다.
 test("CLI adapters build default args without model or resume state", () => {
-  assert.deepEqual(new ClaudeAdapter().buildArgs(baseOptions), [
-    "-p",
-    "-",
-    "--output-format",
-    "stream-json",
-    "--dangerously-skip-permissions",
-  ]);
-  assert.deepEqual(new CodexAdapter().buildArgs(baseOptions), [
-    "exec",
-    "--dangerously-bypass-approvals-and-sandbox",
-    "-",
-  ]);
   assert.deepEqual(new GeminiAdapter().buildArgs(baseOptions), [
     "-p",
     "-",
@@ -46,22 +35,6 @@ test("CLI adapters build default args without model or resume state", () => {
 test("CLI adapters include model flags when a model is provided", () => {
   const options = { ...baseOptions, model: "gpt-test" };
 
-  assert.deepEqual(new ClaudeAdapter().buildArgs(options), [
-    "-p",
-    "-",
-    "--output-format",
-    "stream-json",
-    "--dangerously-skip-permissions",
-    "--model",
-    "gpt-test",
-  ]);
-  assert.deepEqual(new CodexAdapter().buildArgs(options), [
-    "exec",
-    "--dangerously-bypass-approvals-and-sandbox",
-    "--model",
-    "gpt-test",
-    "-",
-  ]);
   assert.deepEqual(new GeminiAdapter().buildArgs(options), [
     "-p",
     "-",
@@ -83,21 +56,6 @@ test("CLI adapters include model flags when a model is provided", () => {
 });
 
 test("CLI adapters build resume args when a session ref exists", () => {
-  assert.deepEqual(new ClaudeAdapter().buildArgs(baseOptions, "claude-session"), [
-    "-p",
-    "-",
-    "--output-format",
-    "stream-json",
-    "--dangerously-skip-permissions",
-    "--resume",
-    "claude-session",
-  ]);
-  assert.deepEqual(new CodexAdapter().buildArgs(baseOptions, "codex-session"), [
-    "exec",
-    "resume",
-    "codex-session",
-    "--dangerously-bypass-approvals-and-sandbox",
-  ]);
   assert.deepEqual(new GeminiAdapter().buildArgs(baseOptions, "gemini-session"), [
     "-p",
     "-",
@@ -119,20 +77,6 @@ test("CLI adapters build resume args when a session ref exists", () => {
 });
 
 test("CLI adapter parseStreamChunk handles JSON and plain text without throwing", () => {
-  assert.equal(
-    new ClaudeAdapter().parseStreamChunk(
-      JSON.stringify({ content_block: { text: "hello from claude" } }),
-    ),
-    "hello from claude",
-  );
-  assert.equal(new ClaudeAdapter().parseStreamChunk("not json"), "");
-
-  assert.equal(new CodexAdapter().parseStreamChunk("codex plain text"), "codex plain text");
-  assert.equal(
-    new CodexAdapter().parseStreamChunk(JSON.stringify({ content: "json still returns raw" })),
-    '{"content":"json still returns raw"}',
-  );
-
   assert.equal(
     new GeminiAdapter().parseStreamChunk(JSON.stringify({ content: "hello from gemini" })),
     "hello from gemini",

@@ -23,7 +23,7 @@ import { WorkspaceManager } from "./workspace-manager";
 import { SubprocessPool } from "./subprocess-pool";
 
 // Dynamic import for OpenCodeAdapter (may be named OpencodeAdapter)
-let OpenCodeAdapterClass: new () => InstanceType<typeof ClaudeAdapter>;
+let OpenCodeAdapterClass: new () => InstanceType<typeof GeminiAdapter>;
 try {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const mod = require("./opencode-adapter");
@@ -40,13 +40,11 @@ describe("Phase2A: Adapter instantiation", () => {
   test("ClaudeAdapter has type 'claude'", () => {
     const adapter = new ClaudeAdapter();
     assert.equal(adapter.type, "claude");
-    assert.equal(adapter.cliCommand, "claude");
   });
 
   test("CodexAdapter has type 'codex'", () => {
     const adapter = new CodexAdapter();
     assert.equal(adapter.type, "codex");
-    assert.equal(adapter.cliCommand, "codex");
   });
 
   test("GeminiAdapter has type 'gemini'", () => {
@@ -70,48 +68,22 @@ describe("Phase2A: Adapter instantiation", () => {
 // ---------------------------------------------------------------------------
 
 describe("Phase2A: buildArgs output", () => {
-  test("ClaudeAdapter default args include stream-json and skip-permissions", () => {
-    const adapter = new ClaudeAdapter();
-    const args = adapter.buildArgs({ sessionKey: "k", prompt: "p" });
-    assert.ok(
-      args.includes("--output-format") || args.some((a) => a.includes("stream-json")),
-      "should include stream-json output format",
-    );
-    assert.ok(
-      args.some((a) => a.includes("dangerously-skip-permissions")),
-      "should include dangerously-skip-permissions",
-    );
-  });
-
-  test("ClaudeAdapter adds --model when specified", () => {
-    const adapter = new ClaudeAdapter();
-    const args = adapter.buildArgs({
-      sessionKey: "k",
-      prompt: "p",
+  // Claude·Codex 의 인자 계약은 cli-session-adapter.test.ts 가 본다(crew-office: 권한 확인을 끄는 옵션을 뺐다).
+  test("ClaudeAdapter args keep stream-json with --verbose and drop skip-permissions", () => {
+    const args = new ClaudeAdapter().buildArgs({
       model: "claude-sonnet-4-20250514",
+      resumeRef: "s-1",
     });
-    assert.ok(args.includes("--model"), "should include --model flag");
-    assert.ok(args.includes("claude-sonnet-4-20250514"), "should include model name");
+    assert.ok(args.includes("stream-json") && args.includes("--verbose"));
+    assert.ok(!args.some((a) => a.includes("dangerously")));
+    assert.ok(args.includes("claude-sonnet-4-20250514") && args.includes("s-1"));
   });
 
-  test("ClaudeAdapter adds --resume when session exists", () => {
-    const adapter = new ClaudeAdapter();
-    const args = adapter.buildArgs({ sessionKey: "k", prompt: "p" }, "session-abc-123");
-    assert.ok(
-      args.some((a) => a.includes("resume") || a === "--resume" || a === "-r"),
-      "should include resume flag",
-    );
-    assert.ok(args.includes("session-abc-123"), "should include session ref");
-  });
-
-  test("CodexAdapter default args include bypass flag", () => {
-    const adapter = new CodexAdapter();
-    const args = adapter.buildArgs({ sessionKey: "k", prompt: "p" });
-    assert.ok(args.includes("exec"), "should include exec subcommand");
-    assert.ok(
-      args.some((a) => a.includes("bypass")),
-      "should include bypass approvals flag",
-    );
+  test("CodexAdapter args use exec --json without the bypass flag", () => {
+    const args = new CodexAdapter().buildArgs({});
+    assert.equal(args[0], "exec");
+    assert.ok(args.includes("--json"));
+    assert.ok(!args.some((a) => a.includes("bypass")));
   });
 
   test("GeminiAdapter default args include yolo approval mode", () => {
@@ -308,25 +280,6 @@ describe("Phase2A: Full adapter registry", () => {
 // ---------------------------------------------------------------------------
 
 describe("Phase2A: parseStreamChunk robustness", () => {
-  test("Claude adapter handles valid stream-json event", () => {
-    const adapter = new ClaudeAdapter();
-    const result = adapter.parseStreamChunk('{"type":"assistant","content":"hello"}');
-    // Should extract content or return something meaningful
-    assert.ok(typeof result === "string");
-  });
-
-  test("Claude adapter handles non-JSON gracefully", () => {
-    const adapter = new ClaudeAdapter();
-    const result = adapter.parseStreamChunk("plain text line");
-    assert.ok(typeof result === "string"); // should not throw
-  });
-
-  test("Codex adapter passes through plain text", () => {
-    const adapter = new CodexAdapter();
-    const result = adapter.parseStreamChunk("Hello from codex");
-    assert.equal(typeof result, "string");
-  });
-
   test("Gemini adapter handles JSON content", () => {
     const adapter = new GeminiAdapter();
     const result = adapter.parseStreamChunk('{"content":"gemini response"}');
@@ -334,7 +287,8 @@ describe("Phase2A: parseStreamChunk robustness", () => {
   });
 
   test("All adapters handle empty string without error", () => {
-    const adapters = [new ClaudeAdapter(), new CodexAdapter(), new GeminiAdapter()];
+    // Claude·Codex 는 parseLine 으로 바뀌었다 — cli-session-adapter.test.ts 참고.
+    const adapters = [new GeminiAdapter()];
     for (const adapter of adapters) {
       const result = adapter.parseStreamChunk("");
       assert.ok(typeof result === "string", `${adapter.type} should handle empty string`);

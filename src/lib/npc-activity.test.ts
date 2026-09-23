@@ -59,3 +59,11 @@ test("모든 활동 키가 네 로케일에 문구를 갖는다", () => {
   }
   assert.deepEqual(missing, []);
 });
+
+test("Claude·Codex CLI 직원의 도구 이름도 알맞은 활동으로 보인다", () => {
+  // 이름은 adapters/fixtures 의 실측 출력에서 왔다.
+  assert.equal(describeActivity("Read")?.key, "npc.activity.readingFile");
+  assert.equal(describeActivity("Write")?.key, "npc.activity.writingFile");
+  assert.equal(describeActivity("shell")?.key, "npc.activity.runningCommand");
+  assert.equal(describeActivity("mcp__office__ask")?.key, "npc.activity.askingAround");
+});
