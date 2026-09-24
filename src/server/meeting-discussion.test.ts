@@ -943,3 +943,122 @@ test("턴 끝 스트림 신호는 회의 기록과 같은 최종 본문을 싣�
   assert.equal((done?.payload as { text?: string }).text, "둘째 생성.");
   assert.equal(meetingRooms.get("a")!.messages.at(-1)?.content, "둘째 생성.");
 });
+
+test("회의실 호출: 시작하자마자 전원에게 묻고, 전원에게 묻기·심화 토론은 주재 권한으로만 브로커에 닿는다", async () => {
+  const calls: RecordedCall[] = [];
+  const activeBrokers = new Map<string, MeetingBrokerLike>();
+  const meetingRooms = new Map([
+    ["channel-1", { participants: new Set(["socket-1"]), messages: [] }],
+  ]);
+  const asked: Array<string[] | undefined> = [];
+  const roundRobins: Array<[string[], number]> = [];
+  const userMessages: string[] = [];
+  let allowedControl = true;
+  const socket = createFakeSocket("socket-1", calls);
+
+  registerMeetingDiscussionHandlers({
+    io: createFakeIo(calls),
+    socket,
+    deps: {
+      activeBrokers,
+      discussionInitiators: new Map(),
+      meetingRooms,
+      players: new Map([["socket-1", { characterName: "Dante" }]]),
+      user: { userId: "user-1", nickname: "Dante" },
+      adapterRegistry: new AdapterRegistry(),
+      getNpcConfigsForChannel: async () => [
+        {
+          id: "npc-1",
+          name: "Mina",
+          agentId: null,
+          sessionKeyPrefix: "npc-1",
+          adapterType: "claude",
+        },
+        {
+          id: "npc-2",
+          name: "Dev",
+          agentId: null,
+          sessionKeyPrefix: "npc-2",
+          adapterType: "codex",
+        },
+      ],
+      canControlMeeting: async () => allowedControl,
+      createMeetingBroker: () => ({
+        config: {
+          participants: ["npc-1", "npc-2"].map((npcId) => ({
+            npcId,
+            displayName: npcId,
+            role: "Participant",
+            passPolicy: null,
+          })),
+          meetingId: "meet-1",
+        },
+        turns: [],
+        isRunning: () => true,
+        run: async () => {},
+        stop: () => {},
+        setMode: () => {},
+        nextTurn: () => {},
+        directSpeak: () => {},
+        abortCurrentTurn: () => {},
+        addUserMessage: (_name, content) => userMessages.push(content),
+        askAll: (ids) => asked.push(ids),
+        startRoundRobin: (ids, turns) => roundRobins.push([ids, turns]),
+      }),
+      generateMeetingSummary: async () => ({ keyTopics: [], conclusions: null }),
+      persistMeetingMinutes: async () => null,
+    },
+  });
+
+  await socket.trigger("meeting:start-discussion", {
+    channelId: "channel-1",
+    topic: "출시 일정",
+    settings: { initialMode: "directed", openingRound: "ask-all" },
+  });
+  assert.deepEqual(asked, [undefined], "주제를 받자마자 전원에게 한 번 묻는다");
+  assert.equal(activeBrokers.get("channel-1")?.discussionState?.mode, "directed");
+
+  await socket.trigger("meeting:ask-all", {
+    channelId: "channel-1",
+    message: "  한 줄씩 의견 주세요 ",
+  });
+  assert.deepEqual(userMessages, ["한 줄씩 의견 주세요"]);
+  assert.equal(asked.length, 2);
+  assert.ok(
+    calls.some(
+      (call) =>
+        call.event === "meeting:message" &&
+        (call.payload as { content?: string }).content === "한 줄씩 의견 주세요",
+    ),
+    "사용자 말은 회의 방에 올라간다",
+  );
+
+  await socket.trigger("meeting:round-robin", {
+    channelId: "channel-1",
+    npcIds: ["npc-2", "ghost", "npc-1"],
+    turns: 99,
+  });
+  assert.deepEqual(
+    roundRobins,
+    [[["npc-2", "npc-1"], 12]],
+    "참가자만 남기고 턴 수는 상한으로 자른다",
+  );
+
+  await socket.trigger("meeting:round-robin", {
+    channelId: "channel-1",
+    npcIds: ["ghost"],
+    turns: 2,
+  });
+  assert.equal(roundRobins.length, 1);
+  assert.ok(calls.some((call) => call.event === "meeting:error"));
+
+  allowedControl = false;
+  await socket.trigger("meeting:ask-all", { channelId: "channel-1", message: "권한 없음" });
+  await socket.trigger("meeting:round-robin", {
+    channelId: "channel-1",
+    npcIds: ["npc-1"],
+    turns: 2,
+  });
+  assert.equal(asked.length, 2);
+  assert.equal(roundRobins.length, 1);
+});

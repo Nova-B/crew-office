@@ -15,6 +15,7 @@ type Props = {
   socket: Socket | null;
   npcs: { id: string; name: string; appearance: unknown }[];
   onLeave: () => void;
+  crewCall?: boolean;
 };
 
 /** Semantic entry surface around the existing full-featured meeting room. */

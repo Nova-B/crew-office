@@ -241,3 +241,57 @@ test("CLI 직원을 터미널로 넘기면 앱은 턴을 보내지 않고, 되�
   const recall = await sendAndAwaitReply(page, "내 강아지 이름이 뭐라고 했지? 이름만 말해줘.");
   expect(recall.replace(/\s+/g, ""), `되돌린 뒤 기억하지 못했습니다: ${recall}`).toContain(token);
 });
+
+// 회의실 호출: 전원이 폴링 없이 동시에 한 번씩 답하고, 그 뒤 심화 토론은 고른 순서대로 번갈아 말한다.
+// Haiku 턴 네 번(병렬 둘 + 심화 둘).
+test("회의실 호출로 전원이 동시에 답하고, 심화 토론은 고른 순서대로 번갈아 말한다", async ({
+  page,
+}) => {
+  test.setTimeout(420_000);
+  const channelId = await bootstrap(page);
+  for (const name of ["미나", "준"]) {
+    const res = await page.request.post(`/api/channels/${channelId}/cli-employees`, {
+      data: {
+        name,
+        adapterType: "claude",
+        model: MODEL,
+        soul: `너는 Crew Office 의 직원 ${name}다. 회의에서는 한국어 한 문장으로만 말한다.`,
+      },
+    });
+    expect(res.status(), await res.text()).toBe(201);
+  }
+  await enterChannel(page, channelId);
+
+  await page.locator('[data-meeting-entry="call"]').click();
+  await expect(page.locator('[data-meeting-join-state="joined"]')).toBeVisible({ timeout: 60_000 });
+  await expect(page.locator("[data-meeting-call-all] input")).toBeChecked();
+
+  await page
+    .locator("[data-meeting-workspace]")
+    .getByLabel("회의 주제를 입력하세요")
+    .fill("점심 메뉴 하나씩 추천");
+  await page.locator("[data-meeting-start]").first().click();
+
+  const npcMessages = page.locator('[data-meeting-message="npc"]');
+  await expect(npcMessages).toHaveCount(2, { timeout: 180_000 });
+  const opening = await npcMessages.evaluateAll((els) =>
+    els.map((el) => el.getAttribute("data-sender")),
+  );
+  expect(new Set(opening)).toEqual(new Set(["미나", "준"]));
+  // 병렬 라운드 뒤에는 지시를 기다린다 — 스스로 다음 발언자를 뽑지 않는다.
+  await page.waitForTimeout(5_000);
+  await expect(npcMessages).toHaveCount(2);
+
+  const deep = page.locator("[data-deep-discussion]");
+  await deep.locator("[data-deep-npc]").filter({ hasText: "준" }).click();
+  await deep.locator("[data-deep-npc]").filter({ hasText: "미나" }).click();
+  await deep.locator('input[type="number"]').fill("2");
+  await deep.locator("[data-deep-start]").click();
+
+  await expect(npcMessages).toHaveCount(4, { timeout: 180_000 });
+  const all = await npcMessages.evaluateAll((els) =>
+    els.map((el) => el.getAttribute("data-sender")),
+  );
+  expect(all.slice(2)).toEqual(["준", "미나"]);
+  await page.screenshot({ path: "test-results/crew-office-meeting-call.png" });
+});

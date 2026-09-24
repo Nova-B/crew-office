@@ -226,6 +226,8 @@ function GamePageInner({ onFatal }: GamePageClientProps) {
   // 방 알림의 "회의록 보기" — 회의실에 들어가지 않고도 그 회의록을 연다.
   const [noticeMinutesId, setNoticeMinutesId] = useState<string | null>(null);
   const meetingEntry = useMeetingEntry(socket, channelId);
+  // crew-office: 「회의실 호출」로 들어가면 회의실이 전원 동시 호출 설정을 켠 채로 열린다.
+  const [meetingCall, setMeetingCall] = useState(false);
   const mode = ["joining", "joined"].includes(meetingEntry.state.status) ? "meeting" : "office";
   // Map rendering needs only placed NPC identity and appearance.
   const [channelNpcs, setChannelNpcs] = useState<
@@ -2369,7 +2371,10 @@ function GamePageInner({ onFatal }: GamePageClientProps) {
           {mode === "office" && (
             <button
               data-meeting-entry="navbar"
-              onClick={() => meetingEntry.request()}
+              onClick={() => {
+                setMeetingCall(false);
+                meetingEntry.request();
+              }}
               title={t("game.meetingRoomWithMinutes", { count: meetingMinutesCount })}
               aria-label={t("game.meetingRoom")}
               className="flex items-center gap-1 px-2.5 py-1 rounded-md text-caption font-semibold bg-meeting/80 hover:bg-meeting text-white"
@@ -2379,6 +2384,21 @@ function GamePageInner({ onFatal }: GamePageClientProps) {
               <span className="bg-white/20 px-1.5 rounded-full text-micro">
                 {meetingMinutesCount}
               </span>
+            </button>
+          )}
+          {mode === "office" && (
+            <button
+              data-meeting-entry="call"
+              onClick={() => {
+                setMeetingCall(true);
+                meetingEntry.request();
+              }}
+              title={t("game.meetingCallHint")}
+              aria-label={t("game.meetingCall")}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-md text-caption font-semibold border border-meeting text-meeting hover:bg-meeting/20"
+            >
+              <Users className="w-3 h-3" />
+              <span className="header-full-label">{t("game.meetingCall")}</span>
             </button>
           )}
 
@@ -2985,6 +3005,7 @@ function GamePageInner({ onFatal }: GamePageClientProps) {
           socket={socket}
           npcs={channelNpcs}
           onLeave={meetingEntry.cancel}
+          crewCall={meetingCall}
         />
       )}
     </div>

@@ -135,7 +135,14 @@ export type MeetingBrokerLike = {
   directSpeak(npcId: string): void;
   abortCurrentTurn(): void;
   addUserMessage(userName: string, content: string): void;
+  /** crew-office: 전원에게 묻기(병렬 라운드). 없으면 이 브로커는 지원하지 않는다(테스트 목 등). */
+  askAll?(npcIds?: string[]): void;
+  /** crew-office: 심화 토론 — 고른 순서대로 turns 번, 폴링 없이. */
+  startRoundRobin?(npcIds: string[], turns: number): void;
 };
+
+/** crew-office: 심화 토론 한 번에 허용하는 발언 수 상한. CLI 직원은 발언 하나가 CLI 실행 하나다. */
+export const MAX_ROUND_ROBIN_TURNS = 12;
 
 type MeetingBrokerCallbacks = {
   onPollStart?: () => void;
@@ -432,6 +439,8 @@ export async function defaultCreateMeetingBroker(
     directSpeak: (npcId) => engine.directSpeak(npcId),
     abortCurrentTurn: () => engine.abortCurrentTurn(),
     addUserMessage: (userName, content) => engine.addUserMessage(userName, content),
+    askAll: (npcIds) => engine.askAll(npcIds),
+    startRoundRobin: (npcIds, turns) => engine.startRoundRobin(npcIds, turns),
   };
 }
 
@@ -848,7 +857,10 @@ export function registerMeetingDiscussionHandlers({
         id: npc.npcId,
         name: npc.displayName,
       })),
-      mode: settings?.initialMode === "manual" ? "manual" : "auto",
+      mode:
+        settings?.initialMode === "manual" || settings?.initialMode === "directed"
+          ? settings.initialMode
+          : "auto",
       initiatorId: user.userId,
       initiatorSocketId: socket.id,
       isWaitingInput: false,
@@ -874,22 +886,24 @@ export function registerMeetingDiscussionHandlers({
       initiatorId: user.userId,
       discussion: brokerInstance.discussionState,
     });
+
+    // crew-office: 회의실 호출은 주제를 받자마자 전원에게 한 번씩 묻는다(병렬 라운드). 첫 루프가 가져간다.
+    if (settings?.openingRound === "ask-all") brokerInstance.askAll?.();
   });
 
-  socket.on("meeting:user-speak", (payload: unknown) => {
-    const { channelId, message } = (payload ?? {}) as { channelId?: string; message?: string };
-    if (!channelId || !message) return;
-
-    const broker = activeBrokers.get(channelId);
-    if (!broker || !broker.isRunning()) return;
-
+  /** 사용자 발언을 회의 기록·방 메시지에 올린다. 빈 말이면 false. */
+  const recordUserMessage = (
+    channelId: string,
+    broker: MeetingBrokerLike,
+    message: unknown,
+  ): boolean => {
     const player = players.get(socket.id);
     const userName = player?.characterName || user.nickname || "Unknown";
-    const trimmed = String(message).trim().slice(0, 500);
-    if (!trimmed) return;
-
+    const trimmed = String(message ?? "")
+      .trim()
+      .slice(0, 500);
+    if (!trimmed) return false;
     broker.addUserMessage(userName, trimmed);
-
     const room = meetingRooms.get(channelId);
     const userMessage: MeetingMessage = {
       id: `msg-${Date.now()}-user`,
@@ -899,15 +913,64 @@ export function registerMeetingDiscussionHandlers({
       content: trimmed,
       timestamp: Date.now(),
     };
-
     if (room) {
       room.messages.push(userMessage);
-      if (room.messages.length > 100) {
-        room.messages.splice(0, room.messages.length - 100);
-      }
+      if (room.messages.length > 100) room.messages.splice(0, room.messages.length - 100);
     }
-
     io.to(getMeetingRoomId(channelId)).emit("meeting:message", userMessage);
+    return true;
+  };
+
+  // ----- crew-office: 회의실 호출 — 전원에게 묻기 / 심화 토론 (주재 권한) -----
+  socket.on("meeting:ask-all", async (payload: unknown) => {
+    const { channelId, message, npcIds } = (payload ?? {}) as {
+      channelId?: string;
+      message?: string;
+      npcIds?: unknown;
+    };
+    if (!channelId) return;
+    if (!(await canControlMeeting(channelId, user.userId))) {
+      socket.emit("meeting:error", { error: "Permission denied" });
+      return;
+    }
+    const broker = activeBrokers.get(channelId);
+    if (!broker || !broker.isRunning() || !broker.askAll) return;
+    if (message !== undefined && !recordUserMessage(channelId, broker, message)) return;
+    const ids = Array.isArray(npcIds)
+      ? npcIds.filter((id): id is string => typeof id === "string")
+      : [];
+    broker.askAll(ids.length > 0 ? ids : undefined);
+  });
+
+  socket.on("meeting:round-robin", async (payload: unknown) => {
+    const { channelId, npcIds, turns } = (payload ?? {}) as {
+      channelId?: string;
+      npcIds?: unknown;
+      turns?: unknown;
+    };
+    if (!channelId || !Array.isArray(npcIds) || typeof turns !== "number") return;
+    if (!(await canControlMeeting(channelId, user.userId))) {
+      socket.emit("meeting:error", { error: "Permission denied" });
+      return;
+    }
+    const broker = activeBrokers.get(channelId);
+    if (!broker || !broker.isRunning() || !broker.startRoundRobin) return;
+    const seated = new Set(broker.config.participants.map((p) => p.npcId));
+    const order = npcIds.filter((id): id is string => typeof id === "string" && seated.has(id));
+    if (order.length === 0) {
+      socket.emit("meeting:error", { error: "invalid_participants" });
+      return;
+    }
+    broker.startRoundRobin(order, Math.max(1, Math.min(MAX_ROUND_ROBIN_TURNS, Math.floor(turns))));
+  });
+
+  socket.on("meeting:user-speak", (payload: unknown) => {
+    const { channelId, message } = (payload ?? {}) as { channelId?: string; message?: string };
+    if (!channelId || !message) return;
+
+    const broker = activeBrokers.get(channelId);
+    if (!broker || !broker.isRunning()) return;
+    recordUserMessage(channelId, broker, message);
   });
 
   socket.on("meeting:stop", async (payload: unknown) => {

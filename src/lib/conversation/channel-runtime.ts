@@ -143,8 +143,15 @@ export class ChannelRuntime {
   private waitResolve: (() => void) | null = null;
   /** 대기가 걸리기 전에 도착한 해제. 래치(불리언)이지 카운터가 아니다 — releaseWait 주석 참고. */
   private pendingRelease = false;
-  /** abortCurrentTurn 대상 — speak() 진행 중에만 채워진다. meeting-broker.js:_currentSessionKey/_currentAgentId. */
-  private current: NpcRuntime | null = null;
+  /**
+   * abortCurrentTurn 대상 — speak() 진행 중에만 채워진다. meeting-broker.js:_currentSessionKey/_currentAgentId.
+   * crew-office: 병렬 라운드에서는 여럿이 동시에 말하므로 집합이다. 발언권 정책에서는 늘 0개나 1개다.
+   */
+  private readonly speaking = new Set<NpcRuntime>();
+  /** crew-office: 다음 루프에서 돌릴 병렬 라운드(전원에게 묻기). 참가자 id 목록. */
+  private pendingRound: string[] | null = null;
+  /** crew-office: 폴링 없이 정해진 순서로 도는 심화 토론. remaining 은 남은 발언 수. */
+  private roundRobin: { order: string[]; cursor: number; remaining: number } | null = null;
 
   constructor(config: EngineConfig, callbacks: EngineCallbacks) {
     this.config = config;
@@ -247,10 +254,47 @@ export class ChannelRuntime {
     this.releaseWait();
   }
 
-  /** 발언권을 쥔 런타임에 abort 를 요청한다. 회의 정책에서 이 포인터는 항상 0개나 1개다.
+  /** 말하고 있는 런타임 전부에 abort 를 요청한다. 발언권 정책에서는 늘 0개나 1개, 병렬 라운드에서는 여럿이다.
    * meeting-broker.js:249-253 이식. */
   abortCurrentTurn(): void {
-    this.current?.abort();
+    for (const runtime of this.speaking) runtime.abort();
+  }
+
+  /**
+   * crew-office: 전원에게 묻기. 다음 루프에서 참가자들이 **같은 트랜스크립트를 보고 동시에** 한 번씩 답한다.
+   * 폴링이 없으므로 LLM 호출은 참가자 수만큼이다(CLI 직원은 호출 하나가 프로세스 하나다).
+   * 사용자 발언은 먼저 addUserMessage 로 넣는다. `npcIds` 를 비우면 착석한 참가자 전원이다.
+   */
+  askAll(npcIds?: string[]): void {
+    this.pendingRound = npcIds && npcIds.length > 0 ? [...npcIds] : null;
+    if (!this.pendingRound) {
+      this.pendingRound = this.config.participants.filter((p) => p.seated).map((p) => p.npcId);
+    }
+    this.roundRobin = null;
+    this.clearAutoResumeTimer();
+    this.wakeForCrewWork();
+  }
+
+  /**
+   * crew-office: 심화 토론. 고른 참가자가 주어진 순서로 돌아가며 `turns` 번 말한다 — 폴링 없이.
+   * 할당량을 다 썼거나 실패가 누적된 참가자는 건너뛴다. 다 돌면 manual/directed 는 다시 입력을 기다린다.
+   */
+  startRoundRobin(npcIds: string[], turns: number): void {
+    const order = npcIds.filter((id) => this.runtimes.has(id));
+    if (order.length === 0 || turns <= 0) return;
+    this.roundRobin = { order, cursor: 0, remaining: Math.floor(turns) };
+    this.pendingRound = null;
+    this.clearAutoResumeTimer();
+    this.wakeForCrewWork();
+  }
+
+  /**
+   * crew-office: 걸려 있는 대기만 푼다. releaseWait 처럼 래치를 남기면, 대기가 걸리기 전에 온 묻기가 라운드 **뒤**의
+   * 대기까지 건너뛰게 해 manual 모드에서 없던 폴링이 생긴다. 대기가 아직 안 걸렸으면 armWait 가 할 일을 보고
+   * 곧바로 통과한다.
+   */
+  private wakeForCrewWork(): void {
+    if (this.waitResolve) this.releaseWait();
   }
 
   /** 대기 프라미스를 먼저 걸어둔 뒤(need) 콜백을 부른다 — 콜백이 동기적으로
@@ -267,6 +311,8 @@ export class ChannelRuntime {
       this.pendingRelease = false;
       return Promise.resolve();
     }
+    // crew-office: 대기를 걸기 직전에 묻기·심화 토론이 들어왔으면 기다리지 않는다.
+    if (this.pendingRound || this.roundRobin) return Promise.resolve();
     return new Promise((resolve) => {
       this.waitResolve = resolve;
     });
@@ -324,6 +370,29 @@ export class ChannelRuntime {
         const { userName, content } = this.userMessageQueue.shift()!;
         this.transcript.add(USER_SPEAKER_ID, userName, content, this.now());
         this.consecutivePasses = 0;
+      }
+
+      // crew-office: 전원에게 묻기·심화 토론은 발언권 정책(폴링)보다 먼저 처리한다.
+      if (this.pendingRound) {
+        const ids = this.pendingRound;
+        this.pendingRound = null;
+        await this.parallelRound(ids);
+        if (this.running && !this.isFinished()) await this.pauseAfterCrewWork();
+        continue;
+      }
+      if (this.roundRobin) {
+        const next = this.nextRoundRobinSpeaker();
+        if (next) {
+          await this.speak(next, { followMentions: false });
+          this.roundRobin.remaining -= 1;
+          if (this.roundRobin.remaining > 0) {
+            await sleep(this.config.quota.cooldownMs);
+            continue;
+          }
+        }
+        this.roundRobin = null;
+        if (this.running && !this.isFinished()) await this.pauseAfterCrewWork();
+        continue;
       }
 
       // 3+5. 다음 발언자 결정 — 지정 발언(어느 runMode 에서든 최우선) 또는 후보 산출 →
@@ -481,17 +550,63 @@ export class ChannelRuntime {
     );
   }
 
+  /** 발언할 수 있는가 — 할당량이 남았고 실패가 누적되지 않았고 착석했다. */
+  private canSpeak(npcId: string): boolean {
+    const runtime = this.runtimes.get(npcId);
+    const seat = this.config.participants.find((p) => p.npcId === npcId);
+    return !!runtime && !!seat?.seated && !runtime.isBurnedOut() && this.remainingTurns(npcId) > 0;
+  }
+
+  /**
+   * crew-office: 병렬 라운드. 모두 같은 트랜스크립트를 보고 동시에 말한다 — takeTurn 이 호출되는 순간의 기록으로
+   * 프롬프트를 만들고, 답은 끝난 순서대로 기록된다. 라운드 안의 지목(TO: 이름)은 따르지 않는다: 따르면 한 번의
+   * 묻기가 몇 턴을 더 낳을지 모르고, "전원에게 한 번씩"이라는 비용 약속이 깨진다.
+   */
+  private async parallelRound(npcIds: string[]): Promise<void> {
+    const runtimes = [...new Set(npcIds)]
+      .filter((id) => this.canSpeak(id))
+      .map((id) => this.runtimes.get(id)!);
+    await Promise.all(runtimes.map((runtime) => this.speak(runtime, { followMentions: false })));
+  }
+
+  /** crew-office: 심화 토론에서 다음 차례. 말할 수 없는 참가자는 건너뛰고, 한 바퀴를 다 돌아도 없으면 null. */
+  private nextRoundRobinSpeaker(): NpcRuntime | null {
+    const plan = this.roundRobin;
+    if (!plan || plan.remaining <= 0) return null;
+    for (let tried = 0; tried < plan.order.length; tried++) {
+      const npcId = plan.order[plan.cursor % plan.order.length];
+      plan.cursor += 1;
+      if (this.canSpeak(npcId)) return this.runtimes.get(npcId)!;
+    }
+    return null;
+  }
+
+  /** crew-office: 묻기·심화 토론이 끝난 뒤. manual/directed 는 다음 입력을 기다리고, auto 는 쿨다운 뒤 계속 돈다. */
+  private async pauseAfterCrewWork(): Promise<void> {
+    if (this.runMode === "auto") {
+      await sleep(this.config.quota.cooldownMs);
+      return;
+    }
+    const waiting = this.armWait();
+    this.callbacks.onWaitingInput?.(null);
+    await waiting;
+  }
+
   /** 발언권을 부여하고 스트리밍 응답을 받아 트랜스크립트에 기록한다. */
-  private async speak(runtime: NpcRuntime): Promise<void> {
+  private async speak(
+    runtime: NpcRuntime,
+    options: { followMentions?: boolean } = {},
+  ): Promise<void> {
+    const followMentions = options.followMentions ?? true;
     this.callbacks.onTurnStart?.(runtime.npcId, runtime.displayName);
-    this.current = runtime;
+    this.speaking.add(runtime);
 
     // takeTurn 은 throw 하지 않는다 — 모든 실패를 SpeakOutcome 으로 돌려준다.
     // 그래야 콜백 호출 조건이 한곳(여기)에 모인다.
     const outcome = await runtime.takeTurn(this.remainingTurns(runtime.npcId), {
       onChunk: (chunk) => this.callbacks.onTurnChunk?.(runtime.npcId, chunk),
     });
-    this.current = null;
+    this.speaking.delete(runtime);
 
     if (outcome.kind === "spoke") {
       this.transcript.add(runtime.npcId, runtime.displayName, outcome.text, this.now());
@@ -500,7 +615,7 @@ export class ChannelRuntime {
       // directSpeak() 메서드를 부르지 않는다 — 그쪽은 사용자 지목용이라
       // abortCurrentTurn() 으로 진행 중인 턴을 끊고 hybridMode 를 manual 로 승격시킨다.
       // 멘션은 발언이 끝난 뒤의 힌트일 뿐이므로 인박스에만 넣는다.
-      if (outcome.mentionNpcId) this.inbox.push(outcome.mentionNpcId, "mention");
+      if (outcome.mentionNpcId && followMentions) this.inbox.push(outcome.mentionNpcId, "mention");
       return;
     }
 
@@ -515,7 +630,7 @@ export class ChannelRuntime {
         reason: outcome.mentionNpcId ? "empty_after_mention" : "empty_response",
       });
       // 본문이 비어 실패로 처리되는 경우에도 지목 자체는 유효한 의사표시다.
-      if (outcome.mentionNpcId) this.inbox.push(outcome.mentionNpcId, "mention");
+      if (outcome.mentionNpcId && followMentions) this.inbox.push(outcome.mentionNpcId, "mention");
       return;
     }
 

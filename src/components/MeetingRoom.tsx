@@ -73,6 +73,86 @@ interface MeetingRoomProps {
   socket: Socket | null;
   npcs: { id: string; name: string; appearance: unknown }[];
   onLeave: () => void;
+  /** crew-office: 「회의실 호출」로 들어왔다 — 시작하자마자 전원에게 묻는 설정을 켠 채로 연다. */
+  crewCall?: boolean;
+}
+
+/** crew-office: 심화 토론 한 번의 발언 수 상한(서버 MAX_ROUND_ROBIN_TURNS 와 같다). */
+const MAX_DEEP_TURNS = 12;
+
+// ---------------------------------------------------------------------------
+// DeepDiscussionPanel — 고른 직원이 고른 순서대로 N번 번갈아 발언 (폴링 없음)
+// ---------------------------------------------------------------------------
+
+function DeepDiscussionPanel({
+  npcs,
+  onStart,
+  t,
+}: {
+  npcs: { id: string; name: string }[];
+  onStart: (npcIds: string[], turns: number) => void;
+  t: (key: string, params?: Record<string, string | number>) => string;
+}) {
+  const [order, setOrder] = useState<string[]>([]);
+  const [turns, setTurns] = useState(4);
+  const toggle = (id: string) =>
+    setOrder((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  return (
+    <div
+      data-deep-discussion
+      className="px-3 py-2 border-b border-border flex flex-wrap items-center gap-1.5"
+    >
+      <span className="text-caption text-text-dim mr-1" title={t("meeting.deepHint")}>
+        {t("meeting.deepDiscussion")}
+      </span>
+      {npcs.map((npc) => {
+        const index = order.indexOf(npc.id);
+        return (
+          <button
+            key={npc.id}
+            type="button"
+            data-deep-npc={npc.id}
+            onClick={() => toggle(npc.id)}
+            className={`px-2 py-1 rounded text-caption transition ${
+              index >= 0
+                ? "bg-info/20 text-info border border-info"
+                : "bg-surface-raised text-text-muted border border-border"
+            }`}
+          >
+            {index >= 0 && <span className="mr-1 font-semibold">{index + 1}</span>}
+            {npc.name}
+          </button>
+        );
+      })}
+      <label className="flex items-center gap-1 text-caption text-text-dim ml-1">
+        {t("meeting.deepTurns")}
+        <input
+          type="number"
+          min={1}
+          max={MAX_DEEP_TURNS}
+          value={turns}
+          onChange={(e) =>
+            setTurns(Math.max(1, Math.min(MAX_DEEP_TURNS, Math.floor(Number(e.target.value) || 1))))
+          }
+          className="w-12 rounded border border-border bg-surface px-1 py-0.5 text-text"
+        />
+      </label>
+      <button
+        type="button"
+        data-deep-start
+        disabled={order.length === 0}
+        onClick={() => {
+          onStart(order, turns);
+          setOrder([]);
+        }}
+        className={`px-2 py-1 rounded text-caption font-semibold ${
+          order.length > 0 ? "bg-info text-black" : "bg-surface text-text-dim cursor-not-allowed"
+        }`}
+      >
+        {t("meeting.deepStart")}
+      </button>
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -90,6 +170,8 @@ function MeetingControlBar({
   onNextTurn,
   onDirectSpeak,
   onStop,
+  onAskAll,
+  onRoundRobin,
   t,
 }: {
   mode: "auto" | "manual" | "directed";
@@ -102,6 +184,8 @@ function MeetingControlBar({
   onNextTurn: () => void;
   onDirectSpeak: (npcId: string) => void;
   onStop: () => void;
+  onAskAll: () => void;
+  onRoundRobin: (npcIds: string[], turns: number) => void;
   t: (key: string, params?: Record<string, string | number>) => string;
 }) {
   const modeLabel =
@@ -144,6 +228,7 @@ function MeetingControlBar({
           })}
         </div>
       )}
+      {mode !== "auto" && <DeepDiscussionPanel npcs={npcs} onStart={onRoundRobin} t={t} />}
       <div className="px-3 py-2 flex items-center gap-2">
         <button
           onClick={() => onSetMode(mode === "auto" ? "manual" : "auto")}
@@ -165,6 +250,20 @@ function MeetingControlBar({
           ⏭
         </button>
         <button
+          type="button"
+          data-meeting-ask-all
+          onClick={onAskAll}
+          disabled={mode === "auto" || !isWaiting}
+          className={`px-2 py-1.5 rounded text-caption font-semibold whitespace-nowrap ${
+            mode !== "auto" && isWaiting
+              ? "bg-meeting/80 hover:bg-meeting text-white"
+              : "bg-surface text-text-dim cursor-not-allowed"
+          }`}
+          title={t("meeting.askAllHint")}
+        >
+          {t("meeting.askAll")}
+        </button>
+        <button
           onClick={onStop}
           className="px-2 py-1.5 rounded bg-danger-bg hover:bg-danger-hover text-text text-body"
           title={t("meeting.stopMeeting")}
@@ -184,7 +283,7 @@ function MeetingControlBar({
             </span>
           )}
         </span>
-        <span className="text-micro bg-surface-raised px-1.5 py-0.5 rounded text-text-secondary">
+        <span className="text-micro bg-surface-raised px-1.5 py-0.5 rounded text-text-secondary whitespace-nowrap">
           {modeLabel}
         </span>
       </div>
@@ -202,6 +301,7 @@ export default function MeetingRoom({
   socket,
   npcs,
   onLeave,
+  crewCall = false,
 }: MeetingRoomProps) {
   const t = useT();
   const { locale } = useLocale();
@@ -256,6 +356,10 @@ export default function MeetingRoom({
     setSelectedNpcIds(new Set(nextNpcs.map((npc) => npc.id)));
   });
   const [maxTurns, setMaxTurns] = useState(20);
+  // crew-office: 회의실 호출 — 시작하자마자 전원 병렬 라운드, 이후엔 지시 대기.
+  const [callAll, setCallAll] = useState(crewCall);
+  // 켜 두면 입력한 말을 전원에게 동시에 묻는다(meeting:ask-all).
+  const [askAllNext, setAskAllNext] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
 
   const [discussionNpcs, setDiscussionNpcs] = useState<MeetingRoomProps["npcs"] | null>(null);
@@ -779,7 +883,8 @@ export default function MeetingRoom({
       topic,
       selectedNpcIds: Array.from(selectedNpcIds),
       settings: {
-        initialMode: startMode,
+        initialMode: callAll ? "directed" : startMode,
+        ...(callAll ? { openingRound: "ask-all" } : {}),
         maxTotalTurns: maxTurns,
         hybridMode,
         hybridAutoResumeMs:
@@ -800,6 +905,7 @@ export default function MeetingRoom({
     selectedNpcIds,
     npcs,
     startMode,
+    callAll,
     maxTurns,
     hybridMode,
     hybridResumeMode,
@@ -860,12 +966,30 @@ export default function MeetingRoom({
     [socket, channelId],
   );
 
+  const handleAskAll = useCallback(() => {
+    if (!socket) return;
+    socket.emit("meeting:ask-all", { channelId });
+    setIsWaitingInput(false);
+  }, [socket, channelId]);
+
+  const handleRoundRobin = useCallback(
+    (npcIds: string[], turns: number) => {
+      if (!socket || npcIds.length === 0) return;
+      socket.emit("meeting:round-robin", { channelId, npcIds, turns });
+      setIsWaitingInput(false);
+    },
+    [socket, channelId],
+  );
+
   const handleSend = useCallback(
     (msg?: string) => {
       const trimmed = (msg ?? input).trim();
       if (!trimmed || cooldown || !socket || joinState !== "joined") return;
       if (!msg) setInput("");
-      if (meetingActive) {
+      if (meetingActive && askAllNext && isInitiator) {
+        socket.emit("meeting:ask-all", { channelId, message: trimmed });
+        setIsWaitingInput(false);
+      } else if (meetingActive) {
         socket.emit("meeting:user-speak", { channelId, message: trimmed });
       } else {
         socket.emit("meeting:chat", { channelId, message: trimmed });
@@ -873,7 +997,7 @@ export default function MeetingRoom({
       setCooldown(true);
       setTimeout(() => setCooldown(false), 2000);
     },
-    [input, cooldown, socket, channelId, meetingActive, joinState],
+    [input, cooldown, socket, channelId, meetingActive, joinState, askAllNext, isInitiator],
   );
 
   const sceneParticipants = [currentUser, ...otherParticipants];
@@ -894,6 +1018,21 @@ export default function MeetingRoom({
   // Shared meeting start form (used in pre-meeting and post-meeting views)
   const renderMeetingStartForm = () => (
     <>
+      <label
+        data-meeting-call-all
+        className="flex items-start gap-2 rounded-lg border border-border bg-surface-raised/40 px-3 py-2 text-caption text-text-secondary cursor-pointer"
+      >
+        <input
+          type="checkbox"
+          checked={callAll}
+          onChange={(e) => setCallAll(e.target.checked)}
+          className="accent-info mt-0.5 w-3 h-3"
+        />
+        <span>
+          <span className="font-semibold text-text">{t("meeting.callAll")}</span>
+          <span className="block text-text-dim">{t("meeting.callAllHint")}</span>
+        </span>
+      </label>
       <button
         type="button"
         onClick={() => setShowStartOptions((prev) => !prev)}
@@ -1133,6 +1272,8 @@ export default function MeetingRoom({
             onNextTurn={handleNextTurn}
             onDirectSpeak={handleDirectSpeak}
             onStop={handleEndMeeting}
+            onAskAll={handleAskAll}
+            onRoundRobin={handleRoundRobin}
             t={t}
           />
         )}
@@ -1192,6 +1333,18 @@ export default function MeetingRoom({
           footer={
             !meetingEnded ? (
               <div data-meeting-chat-input className="border-t border-border bg-bg">
+                {meetingActive && isInitiator && (
+                  <label className="flex items-center gap-1.5 px-3 pt-2 text-caption text-text-dim cursor-pointer">
+                    <input
+                      type="checkbox"
+                      data-meeting-ask-all-next
+                      checked={askAllNext}
+                      onChange={(e) => setAskAllNext(e.target.checked)}
+                      className="accent-info w-3 h-3"
+                    />
+                    {t("meeting.askAllNext")}
+                  </label>
+                )}
                 <ChatInput
                   onSend={(msg) => handleSend(msg)}
                   placeholder={t("meeting.speakToMeeting")}

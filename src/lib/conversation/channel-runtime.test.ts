@@ -1737,3 +1737,212 @@ describe("대기가 걸리기 전에 도착한 해제도 유실되지 않는다"
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// crew-office: 회의실 호출 — 전원에게 묻기(병렬 라운드)와 심화 토론(폴링 없는 순서 발언)
+// ---------------------------------------------------------------------------
+
+/** 동시 실행을 증명하는 목: `expected` 명이 모두 execute 에 들어올 때까지 아무도 끝나지 않는다. */
+function barrier(expected: number) {
+  let arrived = 0;
+  let open!: () => void;
+  const allIn = new Promise<void>((resolve) => (open = resolve));
+  return {
+    adapter(name: string, reply: string): NpcAdapter & { calls: AdapterExecuteOptions[] } {
+      const calls: AdapterExecuteOptions[] = [];
+      return {
+        type: "mock",
+        calls,
+        async execute(options: AdapterExecuteOptions) {
+          calls.push(options);
+          arrived += 1;
+          if (arrived >= expected) open();
+          await allIn;
+          options.onDelta?.(`${name}: ${reply}`);
+          return { response: reply, session: { sessionRef: options.sessionKey } };
+        },
+        async testConnection() {
+          return { status: "ok" as const };
+        },
+      };
+    },
+  };
+}
+
+const crewQuota = {
+  maxConsecutivePasses: 2,
+  cooldownMs: 0,
+  maxTotalTurns: 50,
+  maxTurnsPerAgent: 20,
+};
+
+describe("ConversationEngine — 전원에게 묻기(병렬 라운드)", () => {
+  test("같은 기록을 보고 전원이 동시에 한 번씩 답하고, 폴링은 하지 않는다", async () => {
+    const gate = barrier(3);
+    const ps = ["a", "b", "c"].map((id) =>
+      participant(id, [], { adapter: gate.adapter(id, `${id}의 의견`) }),
+    );
+    const starts: string[] = [];
+    let waits = 0;
+    const engine = new ChannelRuntime(
+      {
+        mode: "meeting",
+        topic: "출시 일정",
+        participants: ps,
+        initialRunMode: "directed",
+        quota: crewQuota,
+      },
+      {
+        onTurnStart: (npcId) => starts.push(npcId),
+        onWaitingInput: () => {
+          waits += 1;
+          if (waits === 1) {
+            engine.addUserMessage("사용자", "다들 한 줄씩 의견 주세요");
+            engine.askAll();
+          } else {
+            engine.stop();
+          }
+        },
+      },
+    );
+    await engine.run();
+
+    assert.deepEqual([...starts].sort(), ["a", "b", "c"]);
+    for (const p of ps) {
+      const calls = (p.adapter as unknown as { calls: AdapterExecuteOptions[] }).calls;
+      assert.equal(calls.length, 1, `${p.npcId} 는 한 번만 불린다`);
+      assert.ok(!calls[0].sessionKey.endsWith("-poll"), "폴링 호출이 없다");
+      assert.match(calls[0].prompt, /다들 한 줄씩 의견 주세요/);
+      assert.doesNotMatch(calls[0].prompt, /의 의견/, "라운드 안에서는 서로의 답을 보지 않는다");
+    }
+  });
+
+  test("라운드 안의 지목(TO: 이름)은 추가 턴을 만들지 않는다", async () => {
+    const a = participant("a", ["TO: b\nb 는 어떻게 생각해?"]);
+    const b = participant("b", ["저는 찬성합니다"]);
+    let waits = 0;
+    const engine = new ChannelRuntime(
+      {
+        mode: "meeting",
+        topic: "t",
+        participants: [a, b],
+        initialRunMode: "directed",
+        quota: crewQuota,
+      },
+      {
+        onWaitingInput: () => {
+          waits += 1;
+          if (waits === 1) engine.askAll(["a"]);
+          else engine.stop();
+        },
+      },
+    );
+    await engine.run();
+    assert.equal((a.adapter as unknown as { calls: unknown[] }).calls.length, 1);
+    assert.equal((b.adapter as unknown as { calls: unknown[] }).calls.length, 0);
+  });
+
+  test("라운드 중 중단하면 말하고 있는 전원을 멈춘다", async () => {
+    const aborted: string[] = [];
+    const hanging = (id: string): NpcAdapter => ({
+      type: "mock",
+      execute: (options) =>
+        new Promise((_, reject) => {
+          options.onRunStarted?.(id);
+          setTimeout(() => reject(new Error("never")), 5_000).unref();
+        }),
+      abort: async () => {
+        aborted.push(id);
+      },
+      async testConnection() {
+        return { status: "ok" as const };
+      },
+    });
+    const ps = ["a", "b"].map((id) => participant(id, [], { adapter: hanging(id) }));
+    let waits = 0;
+    const engine = new ChannelRuntime(
+      {
+        mode: "meeting",
+        topic: "t",
+        participants: ps,
+        initialRunMode: "directed",
+        quota: crewQuota,
+        turnTimeout: { idleMs: 5_000, maxMs: 5_000 },
+      },
+      {
+        onTurnStart: (npcId) => {
+          if (npcId === "b") setImmediate(() => engine.stop());
+        },
+        onWaitingInput: () => {
+          waits += 1;
+          if (waits === 1) engine.askAll();
+        },
+      },
+    );
+    await engine.run();
+    assert.deepEqual([...new Set(aborted)].sort(), ["a", "b"]);
+  });
+});
+
+describe("ConversationEngine — 심화 토론(폴링 없는 순서 발언)", () => {
+  test("고른 순서대로 정해진 턴 수만큼 말하고 다시 입력을 기다린다", async () => {
+    const a = participant("a", ["a 발언"]);
+    const b = participant("b", ["b 발언"]);
+    const c = participant("c", ["c 발언"]);
+    const speakers: string[] = [];
+    let waits = 0;
+    const engine = new ChannelRuntime(
+      {
+        mode: "meeting",
+        topic: "t",
+        participants: [a, b, c],
+        initialRunMode: "directed",
+        quota: crewQuota,
+      },
+      {
+        onTurnStart: (npcId) => speakers.push(npcId),
+        onWaitingInput: () => {
+          waits += 1;
+          if (waits === 1) engine.startRoundRobin(["b", "a"], 3);
+          else engine.stop();
+        },
+      },
+    );
+    await engine.run();
+    assert.deepEqual(speakers, ["b", "a", "b"]);
+    for (const p of [a, b, c]) {
+      const calls = (p.adapter as unknown as { calls: AdapterExecuteOptions[] }).calls;
+      assert.ok(
+        calls.every((call) => !call.sessionKey.endsWith("-poll")),
+        "폴링 호출이 없다",
+      );
+    }
+    assert.equal(waits, 2, "다 돌고 나면 다시 기다린다");
+  });
+
+  test("할당량을 다 쓴 참가자는 건너뛴다", async () => {
+    const a = participant("a", ["a 발언"]);
+    const b = participant("b", ["b 발언"]);
+    const speakers: string[] = [];
+    let waits = 0;
+    const engine = new ChannelRuntime(
+      {
+        mode: "meeting",
+        topic: "t",
+        participants: [a, b],
+        initialRunMode: "directed",
+        quota: { ...crewQuota, maxTurnsPerAgent: 1 },
+      },
+      {
+        onTurnStart: (npcId) => speakers.push(npcId),
+        onWaitingInput: () => {
+          waits += 1;
+          if (waits === 1) engine.startRoundRobin(["a", "b"], 4);
+          else engine.stop();
+        },
+      },
+    );
+    await engine.run();
+    assert.deepEqual(speakers, ["a", "b"]);
+  });
+});
